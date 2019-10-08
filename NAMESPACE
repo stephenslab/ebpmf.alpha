@@ -2,5 +2,6 @@
 
 export(ebpmf_exponential_mixture)
 export(ebpmf_exponential_mixture_experiment)
+export(ebpmf_point_gamma)
 import(ebpm)
 import(mixsqp)
