@@ -7,7 +7,7 @@ Install the ebpm package using `devtools`:
 
 ```R
 library(devtools)
-install_github("zihao12/ebpmf")
+install_github("stephenslab/ebpmf")
 ```
 
 
