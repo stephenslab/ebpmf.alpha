@@ -30,36 +30,51 @@
 #' To add
 
 #'
-#' @export ebpmf_exponential_mixture
+#' @export  ebpmf_exponential_mixture
 
-
-ebpmf_exponential_mixture <- function(X, K, m = 2, maxiter.out = 10, maxiter.int = 1, seed = 123, verbose = T){
-  set.seed(123)
+ebpmf_exponential_mixture <- function(X, K, m = 2, maxiter.out = 10, maxiter.int = 1, verbose = F, seed = 123){
+  set.seed(seed)
   start = proc.time()
   qg = initialize_qg(X, K)
   runtime_init = (proc.time() - start)[[3]]
   runtime_rank1 = 0
   runtime_ez = 0
 
+  ELBOs = c()
+  KLs = c()
   for(iter in 1:maxiter.out){
+    ELBO = 0
+    KL = 0
+    ## get <Z_ijk>
+    start = proc.time()
+    tmp = get_Ez(X, qg, K)
+    Ez = tmp$Ez
+    zeta = tmp$zeta
+    rm(tmp)
+    runtime_ez = runtime_ez + (proc.time() - start)[[3]]
     #print(sprintf("iter: %d", iter))
+    #browser()
     for(k in 1:K){
-      ## get row & column sum of <Z_ijk>
-      start = proc.time()
-      Ez = get_Ez_sums(X, qg, k, K)
-      runtime_ez = runtime_ez + (proc.time() - start)[[3]]
       ## update q, g
       start = proc.time()
-      tmp = ebpmf_rank1_exponential_helper(Ez$rsum,Ez$csum,NULL,m, maxiter.int)
+      tmp = ebpmf_rank1_exponential_helper(rowSums(Ez[,,k]),colSums(Ez[,,k]),NULL,m, maxiter.int)
+      KL = KL + tmp$kl_l + tmp$kl_f
       runtime_rank1 = runtime_rank1 + (proc.time() - start)[[3]]
       qg = update_qg(tmp, qg, k)
+    }
+    ELBO = compute_elbo(Ez, zeta, qg, KL)
+    KLs <- c(KLs, KL)
+    ELBOs <- c(ELBOs, ELBO)
+    if(verbose){
+      print("iter         ELBO")
+      print(sprintf("%d:    %f", iter, ELBO))
     }
   }
   print("summary of  runtime:")
   print(sprintf("init           : %f", runtime_init))
   print(sprintf("Ez     per time: %f", runtime_ez/(iter*K)))
   print(sprintf("rank1  per time: %f", runtime_rank1/(iter*K)))
-  return(qg)
+  return(list(qg = qg, ELBO = ELBOs, KL = KLs))
 }
 
 ## ================== helper functions ==================================
@@ -93,27 +108,19 @@ initialize_qg <- function(X, K, seed = 123){
 }
 
 ## compute the row & col sum of <Z_ijk> for a given k
-get_Ez_sums <- function(X, qg, k, K){
+get_Ez <- function(X, qg,K){
   n = nrow(X)
   p = ncol(X)
-  psi = array(dim = c(n, p, K))
+  zeta = array(dim = c(n, p, K))
   ## get <ln l_ik> + <ln f_jk>
   for(d in 1:K){
-    psi[,,d] = outer(qg$qls_mean_log[,d], qg$qfs_mean_log[,d], "+")
+    zeta[,,d] = outer(qg$qls_mean_log[,d], qg$qfs_mean_log[,d], "+")
   }
   ## do softmax
-  #browser()
-  psi = softmax3d(psi)
-  Ez = as.vector(psi)*as.vector(X)
-  dim(Ez) = dim(psi)
-  return(list(rsum = rowSums(Ez[,,k]), csum = colSums(Ez[,,k])))
-}
-
-softmax3d <- function(x){
-  score.exp <- exp(x)
-  probs <-as.vector(score.exp)/as.vector(rowSums(score.exp,dims=2))
-  dim(probs) <- dim(x)
-  return(probs)
+  zeta = softmax3d(zeta)
+  Ez = as.vector(zeta)*as.vector(X)
+  dim(Ez) = dim(zeta)
+  return(list(Ez = Ez, zeta = zeta))
 }
 
 update_qg <- function(tmp, qg, k){
@@ -132,22 +139,24 @@ ebpmf_rank1_exponential_helper <- function(X_rowsum,X_colsum, init = NULL, m = 2
   for(i in 1:maxiter){
     ## update q(f), g(f)
     sum_El = sum(ql$mean)
-    tmp = ebpm::ebpm_exponential_mixture(x = X_colsum, s = replicate(p,sum_El), m = m)
-    qf = tmp$posterior
-    gf = tmp$fitted_g
-    ll_f = tmp$log_likelihood
+    tmp_f = ebpm::ebpm_exponential_mixture(x = X_colsum, s = replicate(p,sum_El), m = m)
+    qf = tmp_f$posterior
+    gf = tmp_f$fitted_g
+    ll_f = tmp_f$log_likelihood
+    ### compute KL(q(f) || g(f)) = -Eq log(g(f)/q(f))
+    kl_f = compute_kl(X_colsum, replicate(p,sum_El), tmp_f)
     ## update q(l), g(l)
     sum_Ef = sum(qf$mean)
-    tmp = ebpm_exponential_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m)
-    ql = tmp$posterior
-    gl = tmp$fitted_g
-    ll_l = tmp$log_likelihood
-    qg = list(ql = ql, gl = gl, qf = qf, gf = gf, ll_f = ll_f, ll_l = ll_l)
+    tmp_l = ebpm::ebpm_exponential_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m)
+    ql = tmp_l$posterior
+    gl = tmp_l$fitted_g
+    ll_l = tmp_l$log_likelihood
+    ### compute KL(q(l) || g(l)) = -Eq log(g(l)/q(l))
+    kl_l = compute_kl(X_rowsum, replicate(p,sum_Ef), tmp_l)
+    qg = list(ql = ql, gl = gl, ll_l = ll_l, kl_l = kl_l, qf = qf, gf = gf, ll_f = ll_f, kl_f = kl_f)
   }
   return(qg)
 }
-
-
 
 
 

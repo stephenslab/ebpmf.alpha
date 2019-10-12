@@ -7,3 +7,11 @@
 * Try on real genetics data
 
 
+Problem:
+
+* point gamma has to be initialized using exponential mixture (as otherwise its training likelihood cannot beat oracle). Initialization needs to be studied.
+
+* ELBO often decreases! though  RMSE (on lambda)  is  good
+
+* devtools::test() always get an error for "test-ebpmf.R:53: error: (unknown)
+non-conformable arrays" but sourcing  that test file is fine.

@@ -34,41 +34,58 @@ ebpmf_point_gamma <- function(X, K, maxiter.out = 10, maxiter.int = 1, verbose =
   set.seed(123)
   start = proc.time()
   qg = initialize_qg(X, K)
+  tmp = get_Ez(X, qg, K)
+  Ez = tmp$Ez
+  zeta = tmp$zeta
+  rm(tmp)
   runtime_init = (proc.time() - start)[[3]]
   runtime_rank1 = 0
   runtime_ez = 0
 
   ELBOs = c()
+  KLs = c()
   for(iter in 1:maxiter.out){
     #if(iter == 2){browser()}
     ELBO = 0
-    ## get <Z_ijk>
-    start = proc.time()
-    tmp = get_Ez(X, qg, K)
-    Ez = tmp$Ez
-    psi = tmp$psi
-    rm(tmp)
-    runtime_ez = runtime_ez + (proc.time() - start)[[3]]
+    KL = 0
+    # ## get <Z_ijk>
+    # start = proc.time()
+    # tmp = get_Ez(X, qg, K)
+    # Ez = tmp$Ez
+    # zeta = tmp$zeta
+    # rm(tmp)
+    # runtime_ez = runtime_ez + (proc.time() - start)[[3]]
+    #browser()
     for(k in 1:K){
       ## update q, g
       start = proc.time()
       tmp = ebpmf_rank1_point_gamma_helper(rowSums(Ez[,,k]),colSums(Ez[,,k]),NULL,maxiter.int)
-      ELBO = ELBO + compute_elbo(Ez[,,k], tmp)
+      KL = KL + tmp$kl_l + tmp$kl_f
       runtime_rank1 = runtime_rank1 + (proc.time() - start)[[3]]
       qg = update_qg(tmp, qg, k)
     }
-    ELBO = ELBO + sum(Ez*log(psi))
+    ## get <Z_ijk>
+    start = proc.time()
+    tmp = get_Ez(X, qg, K)
+    runtime_ez = runtime_ez + (proc.time() - start)[[3]]
+    Ez = tmp$Ez
+    zeta = tmp$zeta
+    rm(tmp)
+
+    ELBO = compute_elbo(Ez, zeta, qg, KL)
+    KLs <- c(KLs, KL)
+    ELBOs <- c(ELBOs, ELBO)
+
     if(verbose){
       print("iter         ELBO")
       print(sprintf("%d:    %f", iter, ELBO))
     }
-    ELBOs <- c(ELBOs, ELBO)
   }
   print("summary of  runtime:")
   print(sprintf("init           : %f", runtime_init))
   print(sprintf("Ez     per time: %f", runtime_ez/(iter*K)))
   print(sprintf("rank1  per time: %f", runtime_rank1/(iter*K)))
-  return(list(qg = qg, ELBO = ELBOs))
+  return(list(qg = qg, ELBO = ELBOs, KL = KLs))
 }
 
 ## ================== helper functions ==================================
@@ -96,6 +113,7 @@ initialize_qg <- function(X, K, seed = 123){
   )
   for(k in 1:K){
     qg_ = ebpmf_rank1_exponential_helper(rsums[k,], csums[k, ], init = NULL, m = 2, maxiter = 1)
+    #qg_ = ebpmf_rank1_point_gamma_helper(rsums[k,], csums[k, ], init = NULL, maxiter = 1) ## THIS IS PROBLEMATIC!!
     qg   = update_qg(qg_, qg, k)
   }
   return(qg)
@@ -105,24 +123,16 @@ initialize_qg <- function(X, K, seed = 123){
 get_Ez <- function(X, qg,K){
   n = nrow(X)
   p = ncol(X)
-  psi = array(dim = c(n, p, K))
+  zeta = array(dim = c(n, p, K))
   ## get <ln l_ik> + <ln f_jk>
   for(d in 1:K){
-    psi[,,d] = outer(qg$qls_mean_log[,d], qg$qfs_mean_log[,d], "+")
+    zeta[,,d] = outer(qg$qls_mean_log[,d], qg$qfs_mean_log[,d], "+") ##  this can be -Inf
   }
   ## do softmax
-  psi = softmax3d(psi)
-  Ez = as.vector(psi)*as.vector(X)
-  dim(Ez) = dim(psi)
-  return(list(Ez = Ez, psi = psi))
-}
-
-softmax3d <- function(x){
-  score.exp <- exp(x)
-  probs <-as.vector(score.exp)/as.vector(rowSums(score.exp,dims=2))
-  probs[is.na(probs)] = 0 ##  since softmax((0,0,...,0)) = (NA, NA,...,NA), I  amnually set them to be 0. But it is not safe!!!
-  dim(probs) <- dim(x)
-  return(probs)
+  zeta = softmax3d(zeta)
+  Ez = as.vector(zeta)*as.vector(X)
+  dim(Ez) = dim(zeta)
+  return(list(Ez = Ez, zeta = zeta))
 }
 
 update_qg <- function(tmp, qg, k){
@@ -145,32 +155,19 @@ ebpmf_rank1_point_gamma_helper <- function(X_rowsum,X_colsum, init = NULL,maxite
     qf = tmp_f$posterior
     gf = tmp_f$fitted_g
     ll_f = tmp_f$log_likelihood
+    ### compute KL(q(f) || g(f)) = -Eq log(g(f)/q(f))
+    kl_f = compute_kl(X_colsum, replicate(p,sum_El), tmp_f)
     ## update q(l), g(l)
     sum_Ef = sum(qf$mean)
     tmp_l = ebpm_point_gamma(x = X_rowsum, s = replicate(n,sum_Ef))
     ql = tmp_l$posterior
     gl = tmp_l$fitted_g
     ll_l = tmp_l$log_likelihood
-    qg = list(ql = ql, gl = gl, qf = qf, gf = gf, ll_f = ll_f, ll_l = ll_l)
+    ### compute KL(q(l) || g(l)) = -Eq log(g(l)/q(l))
+    kl_l = compute_kl(X_rowsum, replicate(p,sum_Ef), tmp_l)
+    qg = list(ql = ql, gl = gl, ll_l = ll_l, kl_l = kl_l, qf = qf, gf = gf, ll_f = ll_f, kl_f = kl_f)
   }
   return(qg)
-}
-
-
-compute_elbo <- function(X, qg){
-  ql = qg$ql
-  gl = qg$gl
-  ll_l = qg$ll_l
-  qf = qg$qf
-  gf = qg$gf
-  ll_f = qg$ll_f
-  ## compute Eq(logp(X | l, f))
-  term1 = sum(- outer(ql$mean, qf$mean, "*") + X*outer(ql$mean_log, qf$mean_log, "+"))
-  ## compute Eq(log(gL(l)/qL(l)))
-  term2 = ll_l - sum(sum(qf$mean)*ql$mean + rowSums(X)*ql$mean_log)- sum(lgamma(rowSums(X + 1)))
-  ## compute Eq(log(gF(f)/qF(f)))
-  term3 = ll_f - sum(sum(ql$mean)*qf$mean + colSums(X)*qf$mean_log) - sum(lgamma(colSums(X + 1)))
-  return(term1 + term2 + term3)
 }
 
 

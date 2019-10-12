@@ -1,7 +1,9 @@
+rm(list  = ls())
 context("test ebpmf_exponential_mixture.R")
 
 library(NNLM)
 library(gtools)
+library(ebpm)
 
 sim_mgamma <- function(dist){
   pi = dist$pi
@@ -13,7 +15,7 @@ sim_mgamma <- function(dist){
 
 ## simulate a poisson mean problem
 ## to do:
-simulate_pm  <-  function(n, p, dl, df, K,scale_b = 10, seed = 123){
+simulate_pm  <-  function(n, p, dl, df, K,scale_b = 10, seed = 1234){
   set.seed(seed)
   ## simulate L
   a = replicate(dl,1)
@@ -50,15 +52,20 @@ sim = simulate_pm(n, p, dl, df, K, scale_b = scale_b)
 #browser()
 out_ebpmf = ebpmf::ebpmf_exponential_mixture(sim$X, K, maxiter.out = 100)
 
+## plot ELBOs & KLs
+plot(out_ebpmf$ELBO, type = "l")
+plot(out_ebpmf$KL, type = "l")
+
+
 ## nnmf
-W0 = out_ebpmf$qls_mean
-H0 = t(out_ebpmf$qfs_mean)
+W0 = out_ebpmf$qg$qls_mean
+H0 = t(out_ebpmf$qg$qfs_mean)
 out_nmf = NNLM::nnmf(sim$X, K,init = list(W0 = W0, H0 = H0), loss = "mkl", method = "lee", max.iter = 100, rel.tol = -1)
 
 
 ## testing:
 test_that("training loglikelihood beats oracle", {
-  lam_pm = out_ebpmf$qls_mean %*% t(out_ebpmf$qfs_mean)
+  lam_pm = out_ebpmf$qg$qls_mean %*% t(out_ebpmf$qg$qfs_mean)
   ll_train_ebpmf = sum(dpois(sim$X, lambda = lam_pm, log = T))
   #ll_val_ebpmf = sum(dpois(sim$Y, lambda = lam_pm, log = T))
 
@@ -70,7 +77,7 @@ test_that("training loglikelihood beats oracle", {
 
 ## testing:
 test_that("validation loglikelihood beats nnmf", {
-  lam_pm = out_ebpmf$qls_mean %*% t(out_ebpmf$qfs_mean)
+  lam_pm = out_ebpmf$qg$qls_mean %*% t(out_ebpmf$qg$qfs_mean)
   #ll_train_ebpmf = sum(dpois(sim$X, lambda = lam_pm, log = T))
   ll_val_ebpmf = sum(dpois(sim$Y, lambda = lam_pm, log = T))
 
@@ -82,7 +89,32 @@ test_that("validation loglikelihood beats nnmf", {
 
 
 
+# test_that("elbo increases monotonically",{
+#   elbos = out_ebpmf$ELBO
+#   n = length(elbos)
+#   expect_false(any(elbos[1:(n-1)] > elbos[2:n]))
+# })
 
 
+## experiment to see RMSE on Lambda
+Lam_true = sim$L %*% t(sim$F)
+try_experiment_rmse <- function(iter, Lam_true){
+  test = ebpmf::ebpmf_exponential_mixture(sim$X, K, maxiter.out = iter)
+  Lam = test$qg$qls_mean %*% t(test$qg$qfs_mean)
+  return(sum((Lam - Lam_true)^2))
+}
+
+iters = seq(10,50,10)
+rmses <- c()
+for(iter in iters){
+  rmse = try_experiment_rmse(iter, Lam_true)
+  rmses = c(rmses, rmse)
+}
+
+## testing:
+test_that("rmse decreases monotonically", {
+  n = length(rmses)
+  expect_false(any(rmses[1:(n-1)] < rmses[2:n]))
+})
 
 

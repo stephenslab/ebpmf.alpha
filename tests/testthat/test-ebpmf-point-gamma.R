@@ -1,7 +1,9 @@
-#context("test ebpmf_exponential_mixture.R")
+rm(list  = ls())
+context("test ebpmf_point_gamma.R")
 
 library(NNLM)
 library(gtools)
+#library(ebpmf)
 
 sim_mgamma <- function(dist){
   pi = dist$pi
@@ -38,13 +40,15 @@ simulate_pm  <-  function(n, p, dl, df, K,scale_b = 10, seed = 123){
 }
 
 ### simulate data
-n = 100
-p = 200
+n = 50
+p = 100
 K = 2
 dl = 10
 df = 10
 scale_b = 5
-sim = simulate_pm(n, p, dl, df, K, scale_b = scale_b)
+sim = simulate_pm(n, p, dl, df, K, scale_b = scale_b, seed =12)
+
+hist(sim$X, breaks = 100)
 
 ## ebpmf
 #browser()
@@ -80,6 +84,44 @@ test_that("validation loglikelihood beats nnmf", {
   #ll_train_nnmf = sum(dpois(sim$X, lambda = lam_nmf, log = T))
   ll_val_nnmf = sum(dpois(sim$Y, lambda = lam_nmf, log = T))
   expect_gt(ll_val_ebpmf, ll_val_nnmf)
+})
+
+
+# ## plot ELBOs & KLs
+# plot(out_ebpmf$ELBO, type = "l")
+# plot(out_ebpmf$KL, type = "l")
+
+
+# test_that("elbo increases monotonically",{
+#   elbos = out_ebpmf$ELBO
+#   n = length(elbos)
+#   expect_false(any(elbos[1:(n-1)] > elbos[2:n]))
+# })
+
+
+
+## experiment to see RMSE on Lambda
+Lam_true = sim$L %*% t(sim$F)
+try_experiment_rmse <- function(iter, Lam_true){
+  test = ebpmf::ebpmf_point_gamma(sim$X, K, maxiter.out = iter)
+  Lam = test$qg$qls_mean %*% t(test$qg$qfs_mean)
+  return(mean((Lam - Lam_true)^2))
+}
+
+iters = seq(10,50,10)
+rmses <- c()
+for(iter in iters){
+  rmse = try_experiment_rmse(iter, Lam_true)
+  rmses = c(rmses, rmse)
+}
+
+#plot(iters, rmses)
+
+
+## testing:
+test_that("rmse decreases monotonically", {
+  n = length(rmses)
+  expect_false(any(rmses[1:(n-1)] < rmses[2:n]))
 })
 
 
