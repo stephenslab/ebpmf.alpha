@@ -146,6 +146,8 @@ update_qg <- function(tmp, qg, k){
 }
 
 ebpmf_rank1_point_gamma_helper <- function(X_rowsum,X_colsum, init = NULL,maxiter = 1){
+  p = length(X_colsum)
+  n = length(X_rowsum)
   if(is.null(init)){init = list(mean = runif(length(X_rowsum), 0, 1))}
   ql = init
   for(i in 1:maxiter){
