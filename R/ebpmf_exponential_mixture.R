@@ -70,10 +70,10 @@ ebpmf_exponential_mixture <- function(X, K, m = 2, maxiter.out = 10, maxiter.int
       print(sprintf("%d:    %f", iter, ELBO))
     }
   }
-  print("summary of  runtime:")
-  print(sprintf("init           : %f", runtime_init))
-  print(sprintf("Ez     per time: %f", runtime_ez/(iter*K)))
-  print(sprintf("rank1  per time: %f", runtime_rank1/(iter*K)))
+  # print("summary of  runtime:")
+  # print(sprintf("init           : %f", runtime_init))
+  # print(sprintf("Ez     per time: %f", runtime_ez/(iter*K)))
+  # print(sprintf("rank1  per time: %f", runtime_rank1/(iter*K)))
   return(list(qg = qg, ELBO = ELBOs, KL = KLs))
 }
 

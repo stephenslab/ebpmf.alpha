@@ -3,6 +3,8 @@
 #' with g_k being either Mixture of Exponential, or Point Gamma
 #' @import mixsqp
 #' @import ebpm
+#' @import gtools
+
 
 #' @details The model is fit in 2 stages: i) estimate \eqn{g} by maximum likelihood (over pi_k)
 #' ii) Compute posterior distributions for \eqn{\lambda_j} given \eqn{x_j,\hat{g}}.
@@ -81,10 +83,10 @@ ebpmf_point_gamma <- function(X, K, maxiter.out = 10, maxiter.int = 1, verbose =
       print(sprintf("%d:    %f", iter, ELBO))
     }
   }
-  print("summary of  runtime:")
-  print(sprintf("init           : %f", runtime_init))
-  print(sprintf("Ez     per time: %f", runtime_ez/(iter*K)))
-  print(sprintf("rank1  per time: %f", runtime_rank1/(iter*K)))
+  # print("summary of  runtime:")
+  # print(sprintf("init           : %f", runtime_init))
+  # print(sprintf("Ez     per time: %f", runtime_ez/(iter*K)))
+  # print(sprintf("rank1  per time: %f", runtime_rank1/(iter*K)))
   return(list(qg = qg, ELBO = ELBOs, KL = KLs))
 }
 
@@ -168,6 +170,56 @@ ebpmf_rank1_point_gamma_helper <- function(X_rowsum,X_colsum, init = NULL,maxite
     ### compute KL(q(l) || g(l)) = -Eq log(g(l)/q(l))
     kl_l = compute_kl(X_rowsum, replicate(p,sum_Ef), tmp_l)
     qg = list(ql = ql, gl = gl, ll_l = ll_l, kl_l = kl_l, qf = qf, gf = gf, ll_f = ll_f, kl_f = kl_f)
+  }
+  return(qg)
+}
+
+#' @export ebpmf_rank1_point_gamma
+ebpmf_rank1_point_gamma <- function(X, init = NULL,maxiter = 1, verbose  = F){
+  X_rowsum = rowSums(X)
+  X_colsum = colSums(X)
+  p = length(X_colsum)
+  n = length(X_rowsum)
+  if(is.null(init)){init = list(mean = 100*runif(length(X_rowsum), 0, 1))}
+  ql = init
+
+  elbos = c()
+  kls = c()
+
+  if(verbose){
+    print(sprintf("%2s   %15s  %15s   %15s  %15s  %15s","iter", "ELBO","KL_L", "KL_F" ,"sum_El", "sum_Ef"))
+  }
+
+  for(i in 1:maxiter){
+    ## update q(f), g(f)
+    sum_El = sum(ql$mean)
+    tmp_f = ebpm::ebpm_point_gamma(x = X_colsum, s = replicate(p,sum_El))
+    qf = tmp_f$posterior
+    gf = tmp_f$fitted_g
+    ll_f = tmp_f$log_likelihood
+    ### compute KL(q(f) || g(f)) = -Eq log(g(f)/q(f))
+    kl_f = compute_kl(X_colsum, replicate(p,sum_El), tmp_f)
+    ## update q(l), g(l)
+    sum_Ef = sum(qf$mean)
+    tmp_l = ebpm::ebpm_point_gamma(x = X_rowsum, s = replicate(n,sum_Ef))
+    ql = tmp_l$posterior
+    gl = tmp_l$fitted_g
+    ll_l = tmp_l$log_likelihood
+    ### compute KL(q(l) || g(l)) = -Eq log(g(l)/q(l))
+    kl_l = compute_kl(X_rowsum, replicate(p,sum_Ef), tmp_l)
+
+    ## compute loglikelihood
+    tmp = X * outer(ql$mean_log, qf$mean_log, "+")
+    tmp[X == 0] = 0
+    ll = - outer(ql$mean,  qf$mean, "*") + tmp
+    ll = sum(ll)
+    elbo = ll - kl_l - kl_f
+    elbos  = c(elbos, elbo)
+    kls = c(kls, kl_l + kl_f)
+    qg = list(ql = ql, gl = gl, ll_l = ll_l, kl_l = kl_l, qf = qf, gf = gf, ll_f = ll_f, kl_f = kl_f, elbos = elbos, kls = kls)
+    if(verbose){
+      print(sprintf("%2d %10f  %.10f  %.10f %.10f %.10f", i, elbo, kl_l, kl_f, sum_El, sum_Ef))
+    }
   }
   return(qg)
 }

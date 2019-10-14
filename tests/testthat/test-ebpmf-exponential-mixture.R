@@ -117,4 +117,3 @@ test_that("rmse decreases monotonically", {
   expect_false(any(rmses[1:(n-1)] < rmses[2:n]))
 })
 
-
