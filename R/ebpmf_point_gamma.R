@@ -47,7 +47,6 @@ ebpmf_point_gamma <- function(X, K, maxiter.out = 10, maxiter.int = 1, verbose =
   ELBOs = c()
   KLs = c()
   for(iter in 1:maxiter.out){
-    #if(iter == 2){browser()}
     ELBO = 0
     KL = 0
     # ## get <Z_ijk>
@@ -60,6 +59,7 @@ ebpmf_point_gamma <- function(X, K, maxiter.out = 10, maxiter.int = 1, verbose =
     #browser()
     for(k in 1:K){
       ## update q, g
+      #if(iter == 100 && k == 3){browser()}
       start = proc.time()
       tmp = ebpmf_rank1_point_gamma_helper(rowSums(Ez[,,k]),colSums(Ez[,,k]),NULL,maxiter.int)
       KL = KL + tmp$kl_l + tmp$kl_f
@@ -163,7 +163,7 @@ ebpmf_rank1_point_gamma_helper <- function(X_rowsum,X_colsum, init = NULL,maxite
     kl_f = compute_kl(X_colsum, replicate(p,sum_El), tmp_f)
     ## update q(l), g(l)
     sum_Ef = sum(qf$mean)
-    tmp_l = ebpm_point_gamma(x = X_rowsum, s = replicate(n,sum_Ef))
+    tmp_l = ebpm_point_gamma(x = X_rowsum, s = replicate(n,sum_Ef)) ## 10 is chosen  arbitrarily
     ql = tmp_l$posterior
     gl = tmp_l$fitted_g
     ll_l = tmp_l$log_likelihood

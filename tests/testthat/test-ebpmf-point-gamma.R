@@ -15,7 +15,7 @@ sim_mgamma <- function(dist){
 
 ## simulate a poisson mean problem
 ## to do:
-simulate_pm  <-  function(n, p, dl, df, K,scale_b = 10, seed = 123){
+simulate_pm  <-  function(n, p, dl, df, K,scale_b = 10, seed = 1234){
   set.seed(seed)
   ## simulate L
   a = replicate(dl,1)
@@ -46,7 +46,7 @@ K = 2
 dl = 10
 df = 10
 scale_b = 5
-sim = simulate_pm(n, p, dl, df, K, scale_b = scale_b, seed =12)
+sim = simulate_pm(n, p, dl, df, K, scale_b = scale_b, seed =123)
 
 hist(sim$X, breaks = 100)
 
