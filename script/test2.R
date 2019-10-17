@@ -1,3 +1,6 @@
+rm(list = ls())
+library(ebpmf)
+
 sim_mgamma <- function(dist){
   pi = dist$pi
   a = dist$a
@@ -32,8 +35,8 @@ simulate_pm  <-  function(n, p, dl, df, K,scale_b = 10, seed = 123){
   return(out)
 }
 
-n = 50
-p = 100
+n = 500
+p = 1000
 K = 2
 dl = 10
 df = 10
@@ -41,12 +44,14 @@ scale_b = 5
 sim = simulate_pm(n, p, dl, df, K, scale_b = scale_b, seed =12)
 print(dim(sim$X))
 
-out_ebpmf_point = ebpmf::ebpmf_point_gamma(sim$X, K, maxiter.out = 100)
-plot(out_ebpmf_point$ELBO, type = "l", xlab = "niter", ylab = "ELBO")
+# out_ebpmf_point = ebpmf::ebpmf_point_gamma(sim$X, K, maxiter.out = 100)
+# plot(out_ebpmf_point$ELBO, type = "l", xlab = "niter", ylab = "ELBO")
+#
+# m = 2
+# out_ebpmf_exp = ebpmf::ebpmf_exponential_mixture(sim$X, K, m = m, maxiter.out = 100)
+# plot(out_ebpmf_exp$ELBO, type = "l", xlab = "niter", ylab = "ELBO")
 
-m = 2
-out_ebpmf_exp = ebpmf::ebpmf_exponential_mixture(sim$X, K, m = m, maxiter.out = 100)
-plot(out_ebpmf_exp$ELBO, type = "l", xlab = "niter", ylab = "ELBO")
+out_rank1 =  ebpmf_rank1_point_gamma_helper(sim$X, maxiter = 10)
 
 
 

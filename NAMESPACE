@@ -2,7 +2,8 @@
 
 export(ebpmf_exponential_mixture)
 export(ebpmf_point_gamma)
-export(ebpmf_rank1_point_gamma)
+export(ebpmf_rank1_point_gamma_helper)
+import(NNLM)
 import(ebpm)
 import(gtools)
 import(mixsqp)

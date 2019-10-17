@@ -32,20 +32,24 @@
 #'
 #' @export  ebpmf_exponential_mixture
 
-ebpmf_exponential_mixture <- function(X, K, m = 2, maxiter.out = 10, maxiter.int = 1, verbose = F, seed = 123){
+ebpmf_exponential_mixture <- function(X, K, m = 2, maxiter.out = 10, maxiter.int = 1, verbose = F, seed = 123,
+                                      fix_g = F, fix_grid = F){
   set.seed(seed)
+
+  ## init from NNLM::nnmf result
   start = proc.time()
   qg = initialize_qg(X, K)
   runtime_init = (proc.time() - start)[[3]]
+
   runtime_rank1 = 0
   runtime_ez = 0
-
   ELBOs = c()
   KLs = c()
+
   for(iter in 1:maxiter.out){
     ELBO = 0
     KL = 0
-    ## get <Z_ijk>
+    ## get <Z_ijk>, zeta_ijk
     start = proc.time()
     tmp = get_Ez(X, qg, K)
     Ez = tmp$Ez
@@ -54,10 +58,26 @@ ebpmf_exponential_mixture <- function(X, K, m = 2, maxiter.out = 10, maxiter.int
     runtime_ez = runtime_ez + (proc.time() - start)[[3]]
     #print(sprintf("iter: %d", iter))
     #browser()
+
     for(k in 1:K){
       ## update q, g
       start = proc.time()
-      tmp = ebpmf_rank1_exponential_helper(rowSums(Ez[,,k]),colSums(Ez[,,k]),NULL,m, maxiter.int)
+      init_l  = list(mean = qg$qls_mean[,k])
+      if(is.null(qg$gls[[k]])){
+        tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m, maxiter = maxiter.int)
+      }else{
+        if(fix_g){
+          tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m, maxiter = maxiter.int,
+                                               fitted_gl = qg$gls[[k]], fitted_gf = qg$gfs[[k]])
+        }else{
+          if(fix_grid){
+            tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m, maxiter = maxiter.int,
+                                                 grid_l = list(a = qg$gls[[k]]$a, b = qg$gls[[k]]$b), grid_f = list(a = qg$gfs[[k]]$a, b = qg$gfs[[k]]$b))
+          }else{
+            tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m, maxiter = maxiter.int)
+          }
+        }
+      }
       KL = KL + tmp$kl_l + tmp$kl_f
       runtime_rank1 = runtime_rank1 + (proc.time() - start)[[3]]
       qg = update_qg(tmp, qg, k)
@@ -78,32 +98,61 @@ ebpmf_exponential_mixture <- function(X, K, m = 2, maxiter.out = 10, maxiter.int
 }
 
 ## ================== helper functions ==================================
-## for each pair of l, f, give them 1/k of the row & col sum
+
+#' @export ebpmf_rank1_exponential_helper
+ebpmf_rank1_exponential_helper <- function(X, init = NULL, m = 2, grid_l = NULL, grid_f = NULL, fitted_gl = NULL, fitted_gf = NULL, maxiter = 1, verbose = F){
+  X_rowsum = rowSums(X)
+  X_colsum = colSums(X)
+  p = length(X_colsum)
+  n = length(X_rowsum)
+
+  ## initialization.  It doesn't matter when doing rank-1 case. Maybe useful for rank-k case  when we assess convergence.
+  if(is.null(init)){
+    nnmf_res = NNLM::nnmf(A = X, k = 1, loss = "mkl", method = "lee", max.iter = 1)
+    ql =  list(mean = nnmf_res$W[,1])
+  }else{ql = init}
+
+  for(i in 1:maxiter){
+    ## update q(f), g(f)
+    sum_El = sum(ql$mean)
+    tmp_f = ebpm::ebpm_exponential_mixture(x = X_colsum, s = replicate(p,sum_El), m = m,grid = grid_f, fitted_g = fitted_gf)
+    qf = tmp_f$posterior
+    gf = tmp_f$fitted_g
+    ll_f = tmp_f$log_likelihood
+    ### compute KL(q(f) || g(f)) = -Eq log(g(f)/q(f))
+    kl_f = compute_kl(X_colsum, replicate(p,sum_El), tmp_f)
+    ## update q(l), g(l)
+    sum_Ef = sum(qf$mean)
+    tmp_l = ebpm::ebpm_exponential_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m, grid = grid_l, fitted_g = fitted_gl)
+    ql = tmp_l$posterior
+    gl = tmp_l$fitted_g
+    ll_l = tmp_l$log_likelihood
+    ### compute KL(q(l) || g(l)) = -Eq log(g(l)/q(l))
+    kl_l = compute_kl(X_rowsum, replicate(p,sum_Ef), tmp_l)
+    qg = list(ql = ql, gl = gl, ll_l = ll_l, kl_l = kl_l, qf = qf, gf = gf, ll_f = ll_f, kl_f = kl_f)
+
+    if(verbose){
+      ## compute ELBO (for debugging)
+      tmp = X * outer(ql$mean_log, qf$mean_log, "+")
+      tmp[X == 0] = 0
+      ll = - outer(ql$mean,  qf$mean, "*") + tmp
+      ll = sum(ll)
+      elbo = ll - kl_l - kl_f
+      print(sprintf("%3d   %.10f  %.10f   %.10f", i, elbo, kl_l, kl_f))
+    }
+  }
+  return(qg)
+}
+
 initialize_qg <- function(X, K, seed = 123){
-  n = nrow(X)
-  p = ncol(X)
-  set.seed(seed)
-  X_rsum = rowSums(X)
-  X_csum = colSums(X)
-  prob_r = replicate(n, rdirichlet(1,replicate(K, 1/K)))[1,,] ## K by n
-  prob_c = replicate(p, rdirichlet(1,replicate(K, 1/K)))[1,,] ## K  by p
-  rsums = matrix(replicate(K*n,0), nrow = K)
-  csums = matrix(replicate(K*p,0), nrow = K)
-  for(i in  1:n){
-    if(X_rsum[i] == 0){rsums[,i] = replicate(K, 0)}
-    else{rsums[,i] = rmultinom(1, X_rsum[i],prob_r[,i])}
-  }
-  for(j in  1:p){
-    if(X_csum[j] == 0){csums[,j] = replicate(K, 0)}
-    else{csums[,j] = rmultinom(1, X_csum[j],prob_c[,j])}
-  }
-  qg = list(qls_mean = matrix(replicate(n*K, 0), ncol =  K), qls_mean_log = matrix(replicate(n*K, 0), ncol =  K), gls = replicate(K, list(NaN)),
-            qfs_mean = matrix(replicate(p*K, 0), ncol =  K), qfs_mean_log = matrix(replicate(p*K, 0), ncol =  K), gfs = replicate(K, list(NaN))
-  )
-  for(k in 1:K){
-    qg_ = ebpmf_rank1_exponential_helper(rsums[k,], csums[k, ], init = NULL, m = 2, maxiter = 1)
-    qg   = update_qg(qg_, qg, k)
-  }
+  nnmf_fit = NNLM::nnmf(A = X, k = K, loss = "mkl", max.iter = 20)
+  qls_mean = nnmf_fit$W
+  qfs_mean = t(nnmf_fit$H)
+  qls_mean_log = log(nnmf_fit$W)
+  qfs_mean_log = log(t(nnmf_fit$W))
+  qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
+            qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
+            gls = replicate(K, list(NULL)),gfs = replicate(K, list(NULL)))
   return(qg)
 }
 
@@ -133,32 +182,6 @@ update_qg <- function(tmp, qg, k){
   return(qg)
 }
 
-ebpmf_rank1_exponential_helper <- function(X_rowsum,X_colsum, init = NULL, m = 2, maxiter = 1){
-  p = length(X_colsum)
-  n = length(X_rowsum)
-  if(is.null(init)){init = list(mean = runif(length(X_rowsum), 0, 1))}
-  ql = init
-  for(i in 1:maxiter){
-    ## update q(f), g(f)
-    sum_El = sum(ql$mean)
-    tmp_f = ebpm::ebpm_exponential_mixture(x = X_colsum, s = replicate(p,sum_El), m = m)
-    qf = tmp_f$posterior
-    gf = tmp_f$fitted_g
-    ll_f = tmp_f$log_likelihood
-    ### compute KL(q(f) || g(f)) = -Eq log(g(f)/q(f))
-    kl_f = compute_kl(X_colsum, replicate(p,sum_El), tmp_f)
-    ## update q(l), g(l)
-    sum_Ef = sum(qf$mean)
-    tmp_l = ebpm::ebpm_exponential_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m)
-    ql = tmp_l$posterior
-    gl = tmp_l$fitted_g
-    ll_l = tmp_l$log_likelihood
-    ### compute KL(q(l) || g(l)) = -Eq log(g(l)/q(l))
-    kl_l = compute_kl(X_rowsum, replicate(p,sum_Ef), tmp_l)
-    qg = list(ql = ql, gl = gl, ll_l = ll_l, kl_l = kl_l, qf = qf, gf = gf, ll_f = ll_f, kl_f = kl_f)
-  }
-  return(qg)
-}
 
 
 

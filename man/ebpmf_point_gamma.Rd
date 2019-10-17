@@ -32,7 +32,7 @@ A list containing elements (this is freeuqntly updated):
      }
 }
 \description{
-Uses Empirical Bayes to fit the model \deqn{X_{ij}  ~ Poi(\sum_k L_{ik} F_{jk})} with \deqn{L_{.k} ~ g_k()}
+Uses Empirical Bayes to fit the model \deqn{X_{ij}  ~ Poi(\sum_k L_{ik} F_{jk})} with \deqn{L_{.k} ~ g_k()}, where dim(X) = c(n,p); dim(L) = c(n,K); dim(F) = c(p,K)
 with g_k being either Mixture of Exponential, or Point Gamma
 }
 \details{
