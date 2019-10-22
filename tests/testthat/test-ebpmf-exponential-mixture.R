@@ -88,6 +88,9 @@ test_that("validation loglikelihood beats nnmf", {
 })
 
 
+# plot(out_ebpmf$ELBO, ylab = "elbo")
+#
+# plot(out_ebpmf$ELBO - out_ebpmf$KL, ylab = "log-prob")
 
 # test_that("elbo increases monotonically",{
 #   elbos = out_ebpmf$ELBO

@@ -1,5 +1,5 @@
 rm(list  = ls())
-context("test ebpmf_point_gamma.R")
+context("test ebpmf_point_gamma.R with g fixed after first iteration")
 
 library(NNLM)
 library(gtools)
@@ -52,7 +52,7 @@ hist(sim$X, breaks = 100)
 
 ## ebpmf
 #browser()
-out_ebpmf = ebpmf::ebpmf_point_gamma(sim$X, K, maxiter.out = 100)
+out_ebpmf = ebpmf::ebpmf_point_gamma(sim$X, K, maxiter.out = 100, fix_gl = T, fix_gf = T)
 
 #plot(out_ebpmf$ELBO)
 
@@ -87,21 +87,19 @@ test_that("validation loglikelihood beats nnmf", {
 })
 
 
-
+# # ## plot ELBOs & KLs
+# plot(out_ebpmf$ELBO, ylab = "elbo")
+# plot(out_ebpmf$ELBO - out_ebpmf$KL, ylab = "log-prob")
+# plot(out_ebpmf$KL, ylab = "KL")
 
 ######## FAILED TESTS BELOW!!!!!!
 
 
-# ## plot ELBOs & KLs
-# plot(out_ebpmf$ELBO, type = "l")
-# plot(out_ebpmf$KL, type = "l")
-
-
-# test_that("elbo increases monotonically",{
-#   elbos = out_ebpmf$ELBO
-#   n = length(elbos)
-#   expect_false(any(elbos[1:(n-1)] > elbos[2:n]))
-# })
+test_that("elbo increases monotonically",{
+  elbos = out_ebpmf$ELBO
+  n = length(elbos)
+  expect_false(any(elbos[1:(n-1)] > elbos[2:n]))
+})
 
 
 
@@ -128,7 +126,7 @@ test_that("validation loglikelihood beats nnmf", {
 #   n = length(rmses)
 #   expect_false(any(rmses[1:(n-1)] < rmses[2:n]))
 # })
-#
+
 
 
 
