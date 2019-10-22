@@ -72,6 +72,7 @@ softmax3d <- function(x){
 
 ## compute KL(q || p) = Eq(log(q(lambda)/p(lambda))) from ebpm fitted result
 compute_kl <- function(x, s, fit_pm){
+  #browser()
   ## -KL = fit_pm$log_likelihood - sum(tmp) + sum(lgamma(x + 1))
   ## tmp =  - s * fit_pm$posterior$mean  +  x * (log(s) + fit_pm$posterior$mean_log)
   tmp = x * (log(s) + fit_pm$posterior$mean_log)
