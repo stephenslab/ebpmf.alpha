@@ -32,7 +32,7 @@
 
 #'
 #' @export ebpmf_point_gamma
-ebpmf_point_gamma <- function(X, K, maxiter.out = 10, maxiter.int = 1, qg = NULL,verbose = F, seed = 123){
+ebpmf_point_gamma <- function(X, K, maxiter.out = 10, maxiter.int = 1, qg = NULL,fix_gl = F, fix_gf  = F, verbose = F, seed = 123){
   set.seed(seed)
   ##  init using NNLM::nnmf
   if(is.null(qg)){
@@ -59,7 +59,7 @@ ebpmf_point_gamma <- function(X, K, maxiter.out = 10, maxiter.int = 1, qg = NULL
       start = proc.time()
       init_l  = list(mean = qg$qls_mean[,k])
       ### fix prior after first iteration!!
-      tmp = ebpmf_rank1_point_gamma_helper(Ez[,,k],init = init_l,gl = qg$gls[[k]], gf = qg$gfs[[k]], fix_gl = F, fix_gf = F, maxiter = maxiter.int) ## note  that  if  gl, gf are null, ebpm  won't fix them
+      tmp = ebpmf_rank1_point_gamma_helper(Ez[,,k],init = init_l,gl = qg$gls[[k]], gf = qg$gfs[[k]], fix_gl = fix_gl, fix_gf = fix_gf, maxiter = maxiter.int) ## note  that  if  gl, gf are null, ebpm  won't fix them
       KL = KL + tmp$kl_l + tmp$kl_f
       runtime_rank1 = runtime_rank1 + (proc.time() - start)[[3]]
       qg = update_qg(tmp, qg, k)
@@ -72,10 +72,14 @@ ebpmf_point_gamma <- function(X, K, maxiter.out = 10, maxiter.int = 1, qg = NULL
     zeta = tmp$zeta
     rm(tmp)
 
-    ELBO = compute_elbo(Ez, zeta, qg, KL)
+    ll = compute_ll(X, qg)
+    ELBO = ll - KL
     KLs <- c(KLs, KL)
     ELBOs <- c(ELBOs, ELBO)
 
+    # ELBO = compute_elbo(Ez, zeta, qg, KL)
+    # KLs <- c(KLs, KL)
+    # ELBOs <- c(ELBOs, ELBO)
     if(verbose){
       print("iter         ELBO")
       print(sprintf("%d:    %f", iter, ELBO))
@@ -90,12 +94,16 @@ ebpmf_point_gamma <- function(X, K, maxiter.out = 10, maxiter.int = 1, qg = NULL
 
 ## ================== helper functions ==================================
 #' @export  ebpmf_rank1_point_gamma_helper
-ebpmf_rank1_point_gamma_helper <- function(X, init = NULL,gl = NULL, gf = NULL, fix_gl = F,fix_gf = F,maxiter = 1, seed = 123){
+ebpmf_rank1_point_gamma_helper <- function(X, init = NULL,gl = NULL, gf = NULL, fix_gl = F,fix_gf = F,maxiter = 1, seed = 123, verbose = F){
   set.seed(seed)
   X_rowsum = rowSums(X)
   X_colsum = colSums(X)
   p = length(X_colsum)
   n = length(X_rowsum)
+
+  if(verbose){
+    print(sprintf("%2s   %10s  %10s   %10s   %10s   %10s", "iter", "elbo", "kl_l", "kl_f", "sum_El", "sum_Ef"))
+  }
 
   ## initialization.  It doesn't matter when doing rank-1 case. Maybe useful for rank-k case  when we assess convergence.
   if(is.null(init)){
@@ -129,58 +137,29 @@ ebpmf_rank1_point_gamma_helper <- function(X, init = NULL,gl = NULL, gf = NULL, 
     gl = tmp_l$fitted_g
     ll_l = tmp_l$log_likelihood
     ### compute KL(q(l) || g(l)) = -Eq log(g(l)/q(l))
-    kl_l = compute_kl(X_rowsum, replicate(p,sum_Ef), tmp_l)
+    kl_l = compute_kl(X_rowsum, replicate(n,sum_Ef), tmp_l)
 
-    # ## compute ELBO (for debugging)
-    # tmp = X * outer(ql$mean_log, qf$mean_log, "+")
-    # tmp[X == 0] = 0
-    # ll = - outer(ql$mean,  qf$mean, "*") + tmp
-    # ll = sum(ll)
-    # elbo = ll - kl_l - kl_f
-    # print(sprintf("%3d   %.10f  %.10f   %.10f", i, elbo, kl_l, kl_f))
+    if(verbose){
+      ## compute ELBO (for debugging)
+      tmp = X * outer(ql$mean_log, qf$mean_log, "+")
+      tmp[X == 0] = 0
+      ll = - outer(ql$mean,  qf$mean, "*") + tmp
+      ll = sum(ll)
+      elbo = ll - kl_l - kl_f
+      print(sprintf("%3d   %.10f  %.10f   %.10f   %.10f   %.10f", i, elbo, kl_l, kl_f, sum_El, sum_Ef))
+    }
 
     qg = list(ql = ql, gl = gl, kl_l = kl_l, qf = qf, gf = gf, kl_f = kl_f)
   }
   return(qg)
 }
 
-initialize_qg <- function(X, K, seed = 123){
-  nnmf_fit = NNLM::nnmf(A = X, k = K, loss = "mkl", max.iter = 20)
-  qls_mean = nnmf_fit$W
-  qfs_mean = t(nnmf_fit$H)
-  qls_mean_log = log(nnmf_fit$W)
-  qfs_mean_log = log(t(nnmf_fit$H))
-  qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
-            qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
-            gls = replicate(K, list(NULL)),gfs = replicate(K, list(NULL)))
-  return(qg)
-}
 
-## compute the row & col sum of <Z_ijk> for a given k
-get_Ez <- function(X, qg,K){
-  n = nrow(X)
-  p = ncol(X)
-  zeta = array(dim = c(n, p, K))
-  ## get <ln l_ik> + <ln f_jk>
-  for(d in 1:K){
-    zeta[,,d] = outer(qg$qls_mean_log[,d], qg$qfs_mean_log[,d], "+") ##  this can be -Inf
-  }
-  ## do softmax
-  zeta = softmax3d(zeta)
-  Ez = as.vector(zeta)*as.vector(X)
-  dim(Ez) = dim(zeta)
-  return(list(Ez = Ez, zeta = zeta))
-}
 
-update_qg <- function(tmp, qg, k){
-  qg$qls_mean[,k] = tmp$ql$mean
-  qg$qls_mean_log[,k] = tmp$ql$mean_log
-  qg$qfs_mean[,k] = tmp$qf$mean
-  qg$qfs_mean_log[,k] = tmp$qf$mean_log
-  qg$gls[[k]] = tmp$gl
-  qg$gfs[[k]] = tmp$gf
-  return(qg)
-}
+
+
+
+
 
 
 #' #' @export ebpmf_rank1_point_gamma
