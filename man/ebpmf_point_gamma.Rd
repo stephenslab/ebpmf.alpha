@@ -4,7 +4,7 @@
 \alias{ebpmf_point_gamma}
 \title{Empirical Bayes Poisson Matrix Factorization with Prior Family Mixture of Exponential}
 \usage{
-ebpmf_point_gamma(X, K, maxiter.out = 10, maxiter.int = 1,
+ebpmf_point_gamma(X, K, maxiter.out = 10, maxiter.int = 1, qg = NULL,
   verbose = F, seed = 123)
 }
 \arguments{

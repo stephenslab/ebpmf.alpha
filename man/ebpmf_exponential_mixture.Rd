@@ -5,7 +5,8 @@
 \title{Empirical Bayes Poisson Matrix Factorization}
 \usage{
 ebpmf_exponential_mixture(X, K, m = 2, maxiter.out = 10,
-  maxiter.int = 1, verbose = F, seed = 123)
+  maxiter.int = 1, verbose = F, seed = 123, fix_g = F,
+  fix_grid = F)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}
