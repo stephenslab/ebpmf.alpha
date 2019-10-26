@@ -4,20 +4,20 @@
 \alias{ebpmf_exponential_mixture}
 \title{Empirical Bayes Poisson Matrix Factorization}
 \usage{
-ebpmf_exponential_mixture(X, K, m = 2, maxiter.out = 10,
-  maxiter.int = 1, verbose = F, seed = 123, fix_g = F,
-  fix_grid = F)
+ebpmf_exponential_mixture(X, K, qg = NULL, maxiter.out = 10,
+  fix_g = F, fix_grid = F, verbose = F, m = 2,
+  init_method = "scd", seed = 123)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}
 
 \item{K}{number of topics}
 
-\item{m}{multiplicative parameter for selecting grid in "ebpm::ebpm_exponential_mixture"}
-
 \item{maxiter.out}{maximum iterations in the outer  loop}
 
-\item{maxiter.int}{maximum iterations in the inner loop}
+\item{m}{multiplicative parameter for selecting grid in "ebpm::ebpm_exponential_mixture"}
+
+\item{init_method}{used in \code{NNLM::nnmf}. Either `scd` or `lee`}
 
 \item{seed}{random seed}
 }

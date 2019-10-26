@@ -13,8 +13,8 @@
 #' @param  maxiter.out  maximum iterations in the outer  loop
 #' @param  maxiter.int  maximum iterations in the inner loop
 #' @param verbose T if print ELBO
+#' @param init_method used in \code{NNLM::nnmf}. Either `scd` or `lee`
 #' @param seed random seed
-#'
 #'
 #' @return A list containing elements (this is freeuqntly updated):
 #'     \describe{
@@ -34,11 +34,13 @@
 #' @export ebpmf_point_gamma
 #'
 #'
-ebpmf_point_gamma <- function(X, K, maxiter.out = 10, fix_g = F, verbose = F, seed = 123){
+ebpmf_point_gamma <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, verbose = F, init_method = "scd",seed = 123){
   set.seed(seed)
   ## init from NNLM::nnmf result
   start = proc.time()
-  qg = initialize_qg(X, K)
+  if(is.null(qg)){
+    qg = initialize_qg(X, K, init_method)
+  }
   runtime_init = (proc.time() - start)[[3]]
 
   runtime_rank1 = 0
@@ -48,6 +50,7 @@ ebpmf_point_gamma <- function(X, K, maxiter.out = 10, fix_g = F, verbose = F, se
   lls = c()
 
   start = proc.time()
+  #browser()
   tmp = get_Ez(X, qg, K)
   Ez = tmp$Ez
   zeta = tmp$zeta
@@ -113,7 +116,7 @@ ebpmf_rank1_point_gamma_helper <- function(X, init = NULL,gl_init = NULL, gf_ini
 
   ## initialization.  It doesn't matter when doing rank-1 case. Maybe useful for rank-k case  when we assess convergence.
   if(is.null(init)){
-    nnmf_res = NNLM::nnmf(A = X, k = 1, loss = "mkl", method = "lee", max.iter = 1)
+    nnmf_res = NNLM::nnmf(A = X, k = 1, loss = "mkl", method = "lee", max.iter = 1, verbose = F)
     ql =  list(mean = nnmf_res$W[,1])
   }else{ql = init}
 

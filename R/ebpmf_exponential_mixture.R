@@ -9,9 +9,8 @@
 #' @param X count matrix (dim(X) = c(n, p)).
 #' @param K number of topics
 #' @param m multiplicative parameter for selecting grid in "ebpm::ebpm_exponential_mixture"
-
-#' @param  maxiter.out  maximum iterations in the outer  loop
-#' @param  maxiter.int  maximum iterations in the inner loop
+#' @param maxiter.out  maximum iterations in the outer  loop
+#' @param init_method used in \code{NNLM::nnmf}. Either `scd` or `lee`
 #' @param seed random seed
 #'
 #'
@@ -30,11 +29,13 @@
 #'
 #' @export  ebpmf_exponential_mixture
 
-ebpmf_exponential_mixture <- function(X, K, maxiter.out = 10, fix_g = F, fix_grid = F, verbose = F, m = 2, seed = 123){
+ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fix_grid = F, verbose = F, m = 2, init_method = "scd", seed = 123){
   set.seed(seed)
   ## init from NNLM::nnmf result
   start = proc.time()
-  qg = initialize_qg(X, K)
+  if(is.null(qg)){
+    qg = initialize_qg(X, K, init_method)
+  }
   runtime_init = (proc.time() - start)[[3]]
 
   runtime_rank1 = 0
@@ -116,7 +117,7 @@ ebpmf_rank1_exponential_helper <- function(X, init = NULL, m = 2,
 
   ## initialization.  It doesn't matter when doing rank-1 case. Maybe useful for rank-k case  when we assess convergence.
   if(is.null(init)){
-    nnmf_res = NNLM::nnmf(A = X, k = 1, loss = "mkl", method = "lee", max.iter = 1)
+    nnmf_res = NNLM::nnmf(A = X, k = 1, loss = "mkl", method = "lee", max.iter = 1, verbose = F)
     ql =  list(mean = nnmf_res$W[,1])
   }else{ql = init}
 

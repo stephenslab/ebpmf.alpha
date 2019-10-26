@@ -43,9 +43,20 @@ update_qg <- function(tmp, qg, k){
 #   return(qg)
 # }
 
+#' @export initialize_qg_from_LF
+initialize_qg_from_LF <- function(L0,F0){
+  qls_mean = L0
+  qfs_mean = F0
+  qls_mean_log = log(L0)
+  qfs_mean_log = log(F0)
+  qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
+            qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
+            gls = replicate(K, list(NULL)),gfs = replicate(K, list(NULL)))
+  return(qg)
+}
 
-initialize_qg <- function(X, K, seed = 123){
-  nnmf_fit = NNLM::nnmf(A = X, k = K, loss = "mkl", max.iter = 20)
+initialize_qg <- function(X, K, init_method = "scd", seed = 123){
+  nnmf_fit = NNLM::nnmf(A = X, k = K, loss = "mkl", max.iter = 20, verbose = F, method = init_method)
   qls_mean = nnmf_fit$W
   qfs_mean = t(nnmf_fit$H)
   qls_mean_log = log(nnmf_fit$W)

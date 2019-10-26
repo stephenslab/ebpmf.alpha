@@ -4,8 +4,8 @@
 \alias{ebpmf_point_gamma}
 \title{Empirical Bayes Poisson Matrix Factorization with Prior Family Mixture of Exponential}
 \usage{
-ebpmf_point_gamma(X, K, maxiter.out = 10, maxiter.int = 1, qg = NULL,
-  verbose = F, seed = 123)
+ebpmf_point_gamma(X, K, qg = NULL, maxiter.out = 10, fix_g = F,
+  verbose = F, init_method = "scd", seed = 123)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}
@@ -14,11 +14,13 @@ ebpmf_point_gamma(X, K, maxiter.out = 10, maxiter.int = 1, qg = NULL,
 
 \item{maxiter.out}{maximum iterations in the outer  loop}
 
-\item{maxiter.int}{maximum iterations in the inner loop}
-
 \item{verbose}{T if print ELBO}
 
+\item{init_method}{used in \code{NNLM::nnmf}. Either `scd` or `lee`}
+
 \item{seed}{random seed}
+
+\item{maxiter.int}{maximum iterations in the inner loop}
 }
 \value{
 A list containing elements (this is freeuqntly updated):
