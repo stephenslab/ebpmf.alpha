@@ -2,6 +2,7 @@
 
 export(ebpmf_exponential_mixture)
 export(ebpmf_point_gamma)
+export(ebpmf_random_effect)
 export(ebpmf_rank1_exponential_helper)
 export(ebpmf_rank1_point_gamma_helper)
 export(initialize_qg_from_LF)
