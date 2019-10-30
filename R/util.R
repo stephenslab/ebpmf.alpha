@@ -76,6 +76,64 @@ softmax3d <- function(x){
   return(probs)
 }
 
+compute_rmse <- function(lam1, lam2){
+  return(sqrt(mean((lam1 - lam2)^2)))
+}
+
+## ================================================================================================================
+## Functions for random effect
+## ================================================================================================================
+
+
+initialize_qg_random_effect <- function(X, K, init_method = "scd", seed = 123){
+  nnmf_fit = NNLM::nnmf(A = X, k = K+1, loss = "mkl", max.iter = 20, verbose = F, method = init_method)
+  qls_mean = nnmf_fit$W[,1:K]
+  qfs_mean = t(nnmf_fit$H)[,1:K]
+  qmu_mean = outer(nnmf_fit$W[,K+1],nnmf_fit$H[K+1,], "*")
+  qls_mean_log = log(qls_mean)
+  qfs_mean_log = log(qfs_mean)
+  qmu_mean_log = log(qmu_mean)
+  qg = list(qls_mean = qls_mean, qls_mean_log = qls_mean_log,
+            qfs_mean = qfs_mean, qfs_mean_log = qfs_mean_log,
+            qmu_mean = qmu_mean, qmu_mean_log = qmu_mean_log,
+            gls = replicate(K, list(NULL)),gfs = replicate(K, list(NULL)),
+            gmu = list(NULL))
+  return(qg)
+}
+
+
+## compute the row & col sum of <Z_ijk> for a given k
+get_Ez_random_effect <- function(X, qg,K){
+  n = nrow(X)
+  p = ncol(X)
+  zeta = array(dim = c(n, p, K+1))
+  ## get <ln l_ik> + <ln f_jk>
+  for(d in 1:K){
+    zeta[,,d] = outer(qg$qls_mean_log[,d], qg$qfs_mean_log[,d], "+") ##  this can be -Inf
+  }
+  zeta[,,K+1] = qg$qmu_mean_log
+  ## do softmax
+  zeta = softmax3d(zeta)
+  Ez = as.vector(zeta)*as.vector(X)
+  dim(Ez) = dim(zeta)
+  return(list(Ez = Ez, zeta = zeta))
+}
+
+update_qg_random_effect <- function(tmp, qg){
+  qg$qmu_mean = tmp$qmu_mean
+  qg$qmu_mean_log = tmp$qmu_mean_log
+  qg$gmu = tmp$gmu
+  return(qg)
+}
+
+compute_ll_random_effect <- function(X, qg){
+  tmp = X * log(rowSums(exp(operate_lf(qg$qls_mean_log, qg$qfs_mean_log, "+")), dims = 2) + exp(qg$qmu_mean_log))
+  tmp[X ==  0] =  0
+  out = - sum(operate_lf(qg$qls_mean, qg$qfs_mean, "*")) - sum(qg$qmu_mean) + sum(tmp)
+  return(out)
+}
+
+
 
 ## ================================================================================================================
 ## Functions for computing ELBO

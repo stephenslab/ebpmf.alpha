@@ -6,7 +6,7 @@
 \usage{
 ebpmf_exponential_mixture(X, K, qg = NULL, maxiter.out = 10,
   fix_g = F, fix_grid = F, verbose = F, m = 2,
-  init_method = "scd", seed = 123)
+  init_method = "scd", seed = 123, Lam_true = NULL)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}

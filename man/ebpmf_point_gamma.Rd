@@ -2,10 +2,11 @@
 % Please edit documentation in R/ebpmf_point_gamma.R
 \name{ebpmf_point_gamma}
 \alias{ebpmf_point_gamma}
-\title{Empirical Bayes Poisson Matrix Factorization with Prior Family Mixture of Exponential}
+\title{Empirical Bayes Poisson Matrix Factorization with Prior Family of Point Gamma}
 \usage{
 ebpmf_point_gamma(X, K, qg = NULL, maxiter.out = 10, fix_g = F,
-  verbose = F, init_method = "scd", seed = 123)
+  verbose = F, init_method = "scd", seed = 123, Lam_true = NULL,
+  pi0_l = "estimate", pi0_f = "estimate")
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}

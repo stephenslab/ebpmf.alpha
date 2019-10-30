@@ -50,6 +50,8 @@ sim = simulate_pm(n, p, dl, df, K, scale_b = scale_b)
 
 ## ebpmf
 #browser()
+
+
 out_ebpmf = ebpmf::ebpmf_exponential_mixture(sim$X, K, maxiter.out = 100)
 
 ## plot ELBOs & KLs
@@ -60,7 +62,7 @@ plot(out_ebpmf$KL, type = "l")
 ## nnmf
 W0 = out_ebpmf$qg$qls_mean
 H0 = t(out_ebpmf$qg$qfs_mean)
-out_nmf = NNLM::nnmf(sim$X, K,init = list(W0 = W0, H0 = H0), loss = "mkl", method = "lee", max.iter = 100, rel.tol = -1)
+out_nmf = NNLM::nnmf(sim$X, K,init = list(W0 = W0, H0 = H0), loss = "mkl", method = "lee", max.iter = 100, rel.tol = -1, verbose  =  F)
 
 
 ## testing:
