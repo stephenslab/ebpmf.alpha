@@ -26,10 +26,59 @@
 #' @examples
 #' To add
 
+
+
+#' @export  ebpmf_exponential_mixture_uniform
+ebpmf_exponential_mixture_uniform <-function(X,K, qg = NULL, init_method = "scd", m = 2,maxiter.out = 100,low = NULL,
+                                             verbose = F,seed = 123){
+  set.seed(seed)
+  if(is.null(qg)){
+    qg = initialize_qg(X, K, init_method)
+  }
+
+  ELBOs = c()
+  KLs = c()
+  lls = c()
+
+  ## run rank1-1 update for one iteration
+  tmp = get_Ez(X, qg, K)
+  Ez = tmp$Ez
+  zeta = tmp$zeta
+
+  for(iter in 1:maxiter.out){
+    KL = 0
+    for(k in 1:K){
+      init_l  = list(mean = qg$qls_mean[,k])
+      tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m, uniform_mixture = T,
+                                           gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], low = low)
+    }
+    KL = KL + tmp$kl_l + tmp$kl_f
+    qg = update_qg(tmp, qg, k)
+    ## update Z
+    start = proc.time()
+    tmp = get_Ez(X, qg, K)
+    Ez = tmp$Ez
+    zeta = tmp$zeta
+    rm(tmp)
+
+    ll = compute_ll(X, qg)
+    ELBO = ll - KL
+    KLs <- c(KLs, KL)
+    ELBOs <- c(ELBOs, ELBO)
+    lls <- c(lls, ll)
+  }
+  return(list(qg = qg, ELBO = ELBOs, KL = KLs, ll = lls))
+}
+
+
+
+
+
 #'
 #' @export  ebpmf_exponential_mixture
 
-ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fix_grid = F, verbose = F, m = 2, init_method = "scd", seed = 123){
+ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fix_grid = F, verbose = F, m = 2, init_method = "scd",
+                                      seed = 123, Lam_true = NULL){
   set.seed(seed)
   ## init from NNLM::nnmf result
   start = proc.time()
@@ -43,6 +92,7 @@ ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g =
   ELBOs = c()
   KLs = c()
   lls = c()
+  rmses = c()
 
   start = proc.time()
   tmp = get_Ez(X, qg, K)
@@ -87,16 +137,23 @@ ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g =
     KLs <- c(KLs, KL)
     ELBOs <- c(ELBOs, ELBO)
     lls <- c(lls, ll)
+    if(!is.null(Lam_true)){
+      rmse = compute_rmse(Lam_true, qg$qls_mean %*% t(qg$qfs_mean))
+      rmses = c(rmses, rmse)
+    }
     if(verbose){
       print("iter         ELBO")
       print(sprintf("%d:    %f", iter, ELBO))
+      if(!is.null(Lam_true)){
+        print(sprintf("%d:    %f", iter, rmse))
+      }
     }
   }
   # print("summary of  runtime:")
   # print(sprintf("init           : %f", runtime_init))
   # print(sprintf("Ez     per time: %f", runtime_ez/(iter*K)))
   # print(sprintf("rank1  per time: %f", runtime_rank1/(iter*K)))
-  return(list(qg = qg, ELBO = ELBOs, KL = KLs, ll = lls))
+  return(list(qg = qg, ELBO = ELBOs, KL = KLs, ll = lls, RMSE = rmses))
 }
 
 ## ================== helper functions ==================================
@@ -105,6 +162,7 @@ ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g =
 #'
 ebpmf_rank1_exponential_helper <- function(X, init = NULL, m = 2,
                                            scale_l = "estimate", scale_f = "estimate", gl_init = NULL, gf_init = NULL, fix_gl = F, fix_gf = F,
+                                           uniform_mixture = F,low = NULL,
                                            maxiter = 1,verbose = F){
   X_rowsum = rowSums(X)
   X_colsum = colSums(X)
@@ -124,7 +182,14 @@ ebpmf_rank1_exponential_helper <- function(X, init = NULL, m = 2,
   for(i in 1:maxiter){
     ## update q(f), g(f)
     sum_El = sum(ql$mean)
-    tmp_f = ebpm::ebpm_exponential_mixture(x = X_colsum, s = replicate(p,sum_El), m = m,scale = scale_f, g_init = gf_init, fix_g = fix_gl)
+
+    if(uniform_mixture){
+      ## f
+      gf_init = get_uniform_mixture(x = X_colsum,s = replicate(p,sum_El),grid_res = gf_init, m = m, low = low)
+      tmp_f = ebpm::ebpm_exponential_mixture(x = X_colsum, s = replicate(p,sum_El), m = m, g_init = gf_init, fix_g = T)
+    }else{
+      tmp_f = ebpm::ebpm_exponential_mixture(x = X_colsum, s = replicate(p,sum_El), m = m,scale = scale_f, g_init = gf_init, fix_g = fix_gl,low = low)
+    }
     qf = tmp_f$posterior
     gf = tmp_f$fitted_g
     ll_f = tmp_f$log_likelihood
@@ -132,7 +197,14 @@ ebpmf_rank1_exponential_helper <- function(X, init = NULL, m = 2,
     kl_f = compute_kl(X_colsum, replicate(p,sum_El), tmp_f)
     ## update q(l), g(l)
     sum_Ef = sum(qf$mean)
-    tmp_l = ebpm::ebpm_exponential_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m, scale = scale_l, g_init = gl_init, fix_g = fix_gf)
+
+    if(uniform_mixture){
+      ## f
+      gl_init = get_uniform_mixture(x = X_rowsum,s = replicate(p,sum_Ef),grid_res = gl_init, m, low =  low)
+      tmp_l = ebpm::ebpm_exponential_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m, g_init = gl_init, fix_g = T)
+    }else{
+      tmp_l = ebpm::ebpm_exponential_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m, scale = scale_l, g_init = gl_init, fix_g = fix_gf, low = low)
+    }
     ql = tmp_l$posterior
     gl = tmp_l$fitted_g
     ll_l = tmp_l$log_likelihood

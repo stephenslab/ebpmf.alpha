@@ -45,6 +45,7 @@ update_qg <- function(tmp, qg, k){
 
 #' @export initialize_qg_from_LF
 initialize_qg_from_LF <- function(L0,F0){
+  K = ncol(L0)
   qls_mean = L0
   qfs_mean = F0
   qls_mean_log = log(L0)

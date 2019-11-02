@@ -1,4 +1,4 @@
-#' @title Empirical Bayes Poisson Matrix Factorization with Prior Family Mixture of Exponential
+#' @title Empirical Bayes Poisson Matrix Factorization with Prior Family of Point Gamma
 #' @description Uses Empirical Bayes to fit the model \deqn{X_{ij}  ~ Poi(\sum_k L_{ik} F_{jk})} with \deqn{L_{.k} ~ g_k()}, where dim(X) = c(n,p); dim(L) = c(n,K); dim(F) = c(p,K)
 #' with g_k being either Mixture of Exponential, or Point Gamma
 #' @import mixsqp
@@ -34,7 +34,10 @@
 #' @export ebpmf_point_gamma
 #'
 #'
-ebpmf_point_gamma <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, verbose = F, init_method = "scd",seed = 123){
+ebpmf_point_gamma <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, verbose = F, init_method = "scd",
+                              seed = 123, Lam_true = NULL, pi0_l = "estimate", pi0_f = "estimate"){
+  if(identical(pi0_l, "estimate")){pi0_l = replicate(K, "estimate")}
+  if(identical(pi0_f, "estimate")){pi0_f = replicate(K, "estimate")}
   set.seed(seed)
   ## init from NNLM::nnmf result
   start = proc.time()
@@ -48,6 +51,7 @@ ebpmf_point_gamma <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, verb
   ELBOs = c()
   KLs = c()
   lls = c()
+  rmses = c()
 
   start = proc.time()
   #browser()
@@ -64,13 +68,13 @@ ebpmf_point_gamma <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, verb
       start = proc.time()
       init_l  = list(mean = qg$qls_mean[,k])
       if(is.null(qg$gls[[k]])){
-        tmp = ebpmf_rank1_point_gamma_helper(X = Ez[,,k],init = init_l)
+        tmp = ebpmf_rank1_point_gamma_helper(X = Ez[,,k],init = init_l, pi0_l = pi0_l[k], pi0_f = pi0_f[k])
       }else{
         if(fix_g){
           tmp = ebpmf_rank1_point_gamma_helper(X = Ez[,,k],init = init_l,
-                                               gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], fix_gl = T, fix_gf = T)
+                                               gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], fix_gl = T, fix_gf = T, pi0_l = pi0_l[k], pi0_f = pi0_f[k])
         }else{
-          tmp = ebpmf_rank1_point_gamma_helper(X = Ez[,,k],init = init_l, gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]])
+          tmp = ebpmf_rank1_point_gamma_helper(X = Ez[,,k],init = init_l, gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], pi0_l = pi0_l[k], pi0_f = pi0_f[k])
         }
       }
       KL = KL + tmp$kl_l + tmp$kl_f
@@ -88,22 +92,32 @@ ebpmf_point_gamma <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, verb
     KLs <- c(KLs, KL)
     ELBOs <- c(ELBOs, ELBO)
     lls <- c(lls, ll)
+    if(!is.null(Lam_true)){
+      rmse = compute_rmse(Lam_true, qg$qls_mean %*% t(qg$qfs_mean))
+      rmses = c(rmses, rmse)
+    }
+
+
     if(verbose){
       print("iter         ELBO")
       print(sprintf("%d:    %f", iter, ELBO))
+      if(!is.null(Lam_true)){
+        print(sprintf("%d:    %f", iter, rmse))
+      }
     }
   }
   # print("summary of  runtime:")
   # print(sprintf("init           : %f", runtime_init))
   # print(sprintf("Ez     per time: %f", runtime_ez/(iter*K)))
   # print(sprintf("rank1  per time: %f", runtime_rank1/(iter*K)))
-  return(list(qg = qg, ELBO = ELBOs, KL = KLs, ll = lls))
+  return(list(qg = qg, ELBO = ELBOs, KL = KLs, ll = lls, RMSE = rmses))
 }
 
 
 ## ================== helper functions ==================================
 #' @export  ebpmf_rank1_point_gamma_helper
-ebpmf_rank1_point_gamma_helper <- function(X, init = NULL,gl_init = NULL, gf_init = NULL, fix_gl = F,fix_gf = F,maxiter = 1, seed = 123, verbose = F){
+ebpmf_rank1_point_gamma_helper <- function(X, init = NULL,gl_init = NULL, gf_init = NULL, pi0_l = "estimate", pi0_f = "estimate",
+                                           fix_gl = F,fix_gf = F,maxiter = 1, seed = 123, verbose = F){
   set.seed(seed)
   X_rowsum = rowSums(X)
   X_colsum = colSums(X)
@@ -125,9 +139,9 @@ ebpmf_rank1_point_gamma_helper <- function(X, init = NULL,gl_init = NULL, gf_ini
     ## update q(f), g(f)
     sum_El = sum(ql$mean)
     if(is.null(gf_init)){
-      tmp_f = ebpm::ebpm_point_gamma(x = X_colsum, s = replicate(p,sum_El))
+      tmp_f = ebpm::ebpm_point_gamma(x = X_colsum, s = replicate(p,sum_El), pi0 = pi0_f)
     }else{
-      tmp_f = ebpm::ebpm_point_gamma(x = X_colsum, s = replicate(p,sum_El), g_init = gf_init, fix_g = fix_gf)
+      tmp_f = ebpm::ebpm_point_gamma(x = X_colsum, s = replicate(p,sum_El), g_init = gf_init, fix_g = fix_gf, pi0 = pi0_f)
     }
     qf = tmp_f$posterior
     gf = tmp_f$fitted_g
@@ -138,9 +152,9 @@ ebpmf_rank1_point_gamma_helper <- function(X, init = NULL,gl_init = NULL, gf_ini
     sum_Ef = sum(qf$mean)
     #browser()
     if(is.null(gl_init)){
-      tmp_l = ebpm_point_gamma(x = X_rowsum, s = replicate(n,sum_Ef))
+      tmp_l = ebpm_point_gamma(x = X_rowsum, s = replicate(n,sum_Ef), pi0 = pi0_l)
     }else{
-      tmp_l = ebpm_point_gamma(x = X_rowsum, s = replicate(n,sum_Ef), g_init = gl_init, fix_g = fix_gl)
+      tmp_l = ebpm_point_gamma(x = X_rowsum, s = replicate(n,sum_Ef), g_init = gl_init, fix_g = fix_gl, pi0 = pi0_l)
     }
     ql = tmp_l$posterior
     gl = tmp_l$fitted_g
@@ -157,7 +171,6 @@ ebpmf_rank1_point_gamma_helper <- function(X, init = NULL,gl_init = NULL, gf_ini
       elbo = ll - kl_l - kl_f
       print(sprintf("%3d   %.10f  %.10f   %.10f   %.10f   %.10f", i, elbo, kl_l, kl_f, sum_El, sum_Ef))
     }
-
     qg = list(ql = ql, gl = gl, kl_l = kl_l, qf = qf, gf = gf, kl_f = kl_f)
   }
   return(qg)
