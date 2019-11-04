@@ -29,7 +29,7 @@
 
 
 #' @export  ebpmf_exponential_mixture_uniform
-ebpmf_exponential_mixture_uniform <-function(X,K, qg = NULL, init_method = "scd", m = 2,maxiter.out = 100,low = NULL,
+ebpmf_exponential_mixture_uniform <-function(X,K, qg = NULL, init_method = "scd", m = 2,maxiter.out = 100,low = NULL,threshold =  NULL,
                                              verbose = F,seed = 123){
   set.seed(seed)
   if(is.null(qg)){
@@ -41,7 +41,7 @@ ebpmf_exponential_mixture_uniform <-function(X,K, qg = NULL, init_method = "scd"
   lls = c()
 
   ## run rank1-1 update for one iteration
-  tmp = get_Ez(X, qg, K)
+  tmp = get_Ez(X, qg, K, threshold)
   Ez = tmp$Ez
   zeta = tmp$zeta
 
@@ -56,7 +56,7 @@ ebpmf_exponential_mixture_uniform <-function(X,K, qg = NULL, init_method = "scd"
     qg = update_qg(tmp, qg, k)
     ## update Z
     start = proc.time()
-    tmp = get_Ez(X, qg, K)
+    tmp = get_Ez(X, qg, K, threshold)
     Ez = tmp$Ez
     zeta = tmp$zeta
     rm(tmp)
@@ -78,6 +78,7 @@ ebpmf_exponential_mixture_uniform <-function(X,K, qg = NULL, init_method = "scd"
 #' @export  ebpmf_exponential_mixture
 
 ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fix_grid = F, verbose = F, m = 2, init_method = "scd",
+                                      threshold =  NULL,
                                       seed = 123, Lam_true = NULL){
   set.seed(seed)
   ## init from NNLM::nnmf result
@@ -95,7 +96,7 @@ ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g =
   rmses = c()
 
   start = proc.time()
-  tmp = get_Ez(X, qg, K)
+  tmp = get_Ez(X, qg, K, threshold)
   Ez = tmp$Ez
   zeta = tmp$zeta
   rm(tmp)
@@ -126,7 +127,7 @@ ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g =
       qg = update_qg(tmp, qg, k)
       ## update Z
       start = proc.time()
-      tmp = get_Ez(X, qg, K)
+      tmp = get_Ez(X, qg, K, threshold)
       Ez = tmp$Ez
       zeta = tmp$zeta
       rm(tmp)

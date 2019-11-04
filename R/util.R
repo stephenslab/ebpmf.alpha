@@ -3,7 +3,7 @@
 ## ================================================================================================================
 
 ## compute the row & col sum of <Z_ijk> for a given k
-get_Ez <- function(X, qg,K){
+get_Ez <- function(X, qg,K, threshold = NULL){
   n = nrow(X)
   p = ncol(X)
   zeta = array(dim = c(n, p, K))
@@ -12,7 +12,7 @@ get_Ez <- function(X, qg,K){
     zeta[,,d] = outer(qg$qls_mean_log[,d], qg$qfs_mean_log[,d], "+") ##  this can be -Inf
   }
   ## do softmax
-  zeta = softmax3d(zeta)
+  zeta = softmax3d(zeta, threshold)
   Ez = as.vector(zeta)*as.vector(X)
   dim(Ez) = dim(zeta)
   return(list(Ez = Ez, zeta = zeta))
@@ -69,9 +69,14 @@ initialize_qg <- function(X, K, init_method = "scd", seed = 123){
 }
 
 ## x is 3d array, and can contain -Inf
-softmax3d <- function(x){
+softmax3d <- function(x, threshold = NULL){
   score.exp <- exp(x)
   probs <-as.vector(score.exp)/as.vector(rowSums(score.exp,dims=2))
+  if(!is.null(threshold)){
+    dim(probs) <- dim(x)
+    probs[probs < threshold] = 0
+    probs <-as.vector(probs)/as.vector(rowSums(probs,dims=2))
+  }
   probs[is.na(probs)] = 0 ##  since softmax((0,0,...,0)) = (NA, NA,...,NA), I manually set them to be 0. But it is not safe!!!
   dim(probs) <- dim(x)
   return(probs)

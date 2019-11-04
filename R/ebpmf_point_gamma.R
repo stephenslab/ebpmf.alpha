@@ -35,7 +35,7 @@
 #'
 #'
 ebpmf_point_gamma <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, verbose = F, init_method = "scd",
-                              seed = 123, Lam_true = NULL, pi0_l = "estimate", pi0_f = "estimate"){
+                              seed = 123, Lam_true = NULL, pi0_l = "estimate", pi0_f = "estimate",threshold = NULL){
   if(identical(pi0_l, "estimate")){pi0_l = replicate(K, "estimate")}
   if(identical(pi0_f, "estimate")){pi0_f = replicate(K, "estimate")}
   set.seed(seed)
@@ -55,7 +55,7 @@ ebpmf_point_gamma <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, verb
 
   start = proc.time()
   #browser()
-  tmp = get_Ez(X, qg, K)
+  tmp = get_Ez(X, qg, K, threshold)
   Ez = tmp$Ez
   zeta = tmp$zeta
   rm(tmp)
@@ -81,7 +81,7 @@ ebpmf_point_gamma <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, verb
       qg = update_qg(tmp, qg, k)
       ## update Z
       start = proc.time()
-      tmp = get_Ez(X, qg, K)
+      tmp = get_Ez(X, qg, K, threshold)
       Ez = tmp$Ez
       zeta = tmp$zeta
       rm(tmp)
