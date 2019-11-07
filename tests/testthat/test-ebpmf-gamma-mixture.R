@@ -1,9 +1,9 @@
 rm(list  = ls())
-context("test ebpmf_random_effect.R")
+context("test ebpmf_gamma_mixture.R")
 
 library(NNLM)
 library(gtools)
-#library(ebpmf)
+library(ebpm)
 
 sim_mgamma <- function(dist){
   pi = dist$pi
@@ -18,14 +18,14 @@ sim_mgamma <- function(dist){
 simulate_pm  <-  function(n, p, dl, df, K,scale_b = 10, seed = 1234){
   set.seed(seed)
   ## simulate L
-  a = replicate(dl,100)
-  b = 10*runif(dl)
+  a = 10*runif(dl)
+  b = replicate(dl,1)
   pi <- rdirichlet(1,rep(1/dl, dl))
   gl = list(pi = pi, a = a, b= b)
   L = matrix(replicate(n*K, sim_mgamma(gl)), ncol = K)
   ## simulate F
-  a = replicate(df,1)
-  b = 10*runif(df)
+  a = 10*runif(df)
+  b = replicate(df,1)
   pi <- rdirichlet(1,rep(1/df, df))
   gf = list(pi = pi, a = a, b= b)
   F = matrix(replicate(p*K, sim_mgamma(gf)), ncol = K)
@@ -40,29 +40,32 @@ simulate_pm  <-  function(n, p, dl, df, K,scale_b = 10, seed = 1234){
 }
 
 ### simulate data
-n = 50
-p = 100
+n = 100
+p = 200
 K = 2
 dl = 10
 df = 10
 scale_b = 5
-sim = simulate_pm(n, p, dl, df, K, scale_b = scale_b, seed =123)
-
-hist(sim$X, breaks = 100)
+sim = simulate_pm(n, p, dl, df, K, scale_b = scale_b)
 
 ## ebpmf
 #browser()
-#out_ebpmf = ebpmf::ebpmf_point_gamma(sim$X, 1, maxiter.out = 100, fix_g = T)
 
 
-out_ebpmf = ebpmf::ebpmf_random_effect(sim$X, K, maxiter.out = 10, fix_g = F)
+#out_ebpmf = ebpmf::ebpmf_gamma_mixture(sim$X, K, maxiter.out = 100, uniform_mixture = T)
 
-#plot(out_ebpmf$ELBO)
+
+out_ebpmf = ebpmf::ebpmf_gamma_mixture(sim$X, K, maxiter.out = 10, m = 3)
+
+## plot ELBOs & KLs
+plot(out_ebpmf$ELBO, type = "l")
+plot(out_ebpmf$KL, type = "l")
+
 
 ## nnmf
 W0 = out_ebpmf$qg$qls_mean
 H0 = t(out_ebpmf$qg$qfs_mean)
-out_nmf = NNLM::nnmf(sim$X, K,init = list(W = W0, H = H0), loss = "mkl", method = "lee", max.iter = 100, rel.tol = -1, verbose  =  F)
+out_nmf = NNLM::nnmf(sim$X, K,init = list(W0 = W0, H0 = H0), loss = "mkl", method = "lee", max.iter = 100, rel.tol = -1, verbose  =  F)
 
 
 ## testing:
@@ -90,49 +93,35 @@ test_that("validation loglikelihood beats nnmf", {
 })
 
 
-# # ## plot ELBOs & KLs
 # plot(out_ebpmf$ELBO, ylab = "elbo")
+#
 # plot(out_ebpmf$ELBO - out_ebpmf$KL, ylab = "log-prob")
-# plot(out_ebpmf$KL, ylab = "KL")
 
-######## FAILED TESTS BELOW!!!!!!
-
-
-test_that("elbo increases monotonically",{
-  elbos = out_ebpmf$ELBO
-  n = length(elbos)
-  expect_false(any(elbos[1:(n-1)] > elbos[2:n]))
-})
-
-
-
-# ## experiment to see RMSE on Lambda
-# Lam_true = sim$L %*% t(sim$F)
-# try_experiment_rmse <- function(iter, Lam_true){
-#   test = ebpmf::ebpmf_point_gamma(sim$X, K, maxiter.out = iter)
-#   Lam = test$qg$qls_mean %*% t(test$qg$qfs_mean)
-#   return(mean((Lam - Lam_true)^2))
-# }
-#
-# iters = seq(10,50,10)
-# rmses <- c()
-# for(iter in iters){
-#   rmse = try_experiment_rmse(iter, Lam_true)
-#   rmses = c(rmses, rmse)
-# }
-#
-# #plot(iters, rmses)
-#
-#
-# ## testing:
-# test_that("rmse decreases monotonically", {
-#   n = length(rmses)
-#   expect_false(any(rmses[1:(n-1)] < rmses[2:n]))
+# test_that("elbo increases monotonically",{
+#   elbos = out_ebpmf$ELBO
+#   n = length(elbos)
+#   expect_false(any(elbos[1:(n-1)] > elbos[2:n]))
 # })
 
 
+## experiment to see RMSE on Lambda
+Lam_true = sim$L %*% t(sim$F)
+try_experiment_rmse <- function(iter, Lam_true){
+  test = ebpmf::ebpmf_gamma_mixture(sim$X, K, maxiter.out = iter)
+  Lam = test$qg$qls_mean %*% t(test$qg$qfs_mean)
+  return(sum((Lam - Lam_true)^2))
+}
 
+iters = seq(10,50,10)
+rmses <- c()
+for(iter in iters){
+  rmse = try_experiment_rmse(iter, Lam_true)
+  rmses = c(rmses, rmse)
+}
 
-
-
+## testing:
+test_that("rmse decreases monotonically", {
+  n = length(rmses)
+  expect_false(any(rmses[1:(n-1)] < rmses[2:n]))
+})
 

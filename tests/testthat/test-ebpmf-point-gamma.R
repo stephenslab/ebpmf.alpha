@@ -54,7 +54,6 @@ hist(sim$X, breaks = 100)
 #browser()
 out_ebpmf = ebpmf::ebpmf_point_gamma(sim$X, 1, maxiter.out = 100, fix_g = T)
 
-
 out_ebpmf = ebpmf::ebpmf_point_gamma(sim$X, K, maxiter.out = 100, fix_g = T)
 
 #plot(out_ebpmf$ELBO)
@@ -62,7 +61,7 @@ out_ebpmf = ebpmf::ebpmf_point_gamma(sim$X, K, maxiter.out = 100, fix_g = T)
 ## nnmf
 W0 = out_ebpmf$qg$qls_mean
 H0 = t(out_ebpmf$qg$qfs_mean)
-out_nmf = NNLM::nnmf(sim$X, K,init = list(W0 = W0, H0 = H0), loss = "mkl", method = "lee", max.iter = 100, rel.tol = -1, verbose  =  F)
+out_nmf = NNLM::nnmf(sim$X, K,init = list(W = W0, H = H0), loss = "mkl", method = "lee", max.iter = 100, rel.tol = -1, verbose  =  F)
 
 
 ## testing:

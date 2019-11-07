@@ -34,7 +34,7 @@
 #' @export ebpmf_random_effect
 #'
 ebpmf_random_effect <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, verbose = F, init_method = "scd",
-                              seed = 123, Lam_true = NULL, pi0_l = "estimate", pi0_f = "estimate", prior_mu = "point"){
+                              seed = 123, Lam_true = NULL, pi0_l = "estimate", pi0_f = "estimate", prior_mu = "gamma"){
   if(identical(pi0_l, "estimate")){pi0_l = replicate(K, "estimate")}
   if(identical(pi0_f, "estimate")){pi0_f = replicate(K, "estimate")}
   set.seed(seed)
@@ -112,8 +112,9 @@ ebpmf_random_effect <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, ve
 }
 
 ebpmf_update_random_effect <- function(X, ebpm_fn = "gamma"){
+  #browser()
   if(identical(ebpm_fn, "gamma")){
-    fit = ebpm::ebpm_point_gamma(x = as.vector(X), pi0 = 0)
+    fit = ebpm::ebpm_point_gamma(x = as.vector(X))
   }
   if(identical(ebpm_fn, "exponential_mix")){
     fit = ebpm::ebpm_exponential_mixture(x = as.vector(X))

@@ -6,7 +6,7 @@
 \usage{
 ebpmf_point_gamma(X, K, qg = NULL, maxiter.out = 10, fix_g = F,
   verbose = F, init_method = "scd", seed = 123, Lam_true = NULL,
-  pi0_l = "estimate", pi0_f = "estimate")
+  pi0_l = "estimate", pi0_f = "estimate", threshold = NULL)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}

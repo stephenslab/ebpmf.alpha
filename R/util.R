@@ -3,6 +3,7 @@
 ## ================================================================================================================
 
 ## compute the row & col sum of <Z_ijk> for a given k
+#' @export get_Ez
 get_Ez <- function(X, qg,K, threshold = NULL){
   n = nrow(X)
   p = ncol(X)

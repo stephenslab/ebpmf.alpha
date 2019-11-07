@@ -1,6 +1,6 @@
-#' @title Empirical Bayes Poisson Matrix Factorization
+#' @title Empirical Bayes Poisson Matrix Factorization with Mixture of Gamma as Prior Family
 #' @description Uses Empirical Bayes to fit the model \deqn{X_{ij}  ~ Poi(\sum_k L_{ik} F_{jk})} with \deqn{L_{.k} ~ g_k()}
-#' with g_k being either Mixture of Exponential, or Point Gamma
+#' with g_k being either Mixture of gamma, or Point Gamma
 #' @import mixsqp
 #' @import ebpm
 
@@ -8,7 +8,7 @@
 #' ii) Compute posterior distributions for \eqn{\lambda_j} given \eqn{x_j,\hat{g}}.
 #' @param X count matrix (dim(X) = c(n, p)).
 #' @param K number of topics
-#' @param m multiplicative parameter for selecting grid in "ebpm::ebpm_exponential_mixture"
+#' @param m multiplicative parameter for selecting grid in "ebpm::ebpm_gamma_mixture"
 #' @param maxiter.out  maximum iterations in the outer  loop
 #' @param init_method used in \code{NNLM::nnmf}. Either `scd` or `lee`
 #' @param seed random seed
@@ -27,58 +27,10 @@
 #' To add
 
 
+#' @export  ebpmf_gamma_mixture
 
-#' @export  ebpmf_exponential_mixture_uniform
-ebpmf_exponential_mixture_uniform <-function(X,K, qg = NULL, init_method = "scd", m = 2,maxiter.out = 100,low = NULL,threshold =  NULL,
-                                             verbose = F,seed = 123){
-  set.seed(seed)
-  if(is.null(qg)){
-    qg = initialize_qg(X, K, init_method)
-  }
-
-  ELBOs = c()
-  KLs = c()
-  lls = c()
-
-  ## run rank1-1 update for one iteration
-  tmp = get_Ez(X, qg, K, threshold)
-  Ez = tmp$Ez
-  zeta = tmp$zeta
-
-  for(iter in 1:maxiter.out){
-    KL = 0
-    for(k in 1:K){
-      init_l  = list(mean = qg$qls_mean[,k])
-      tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m, uniform_mixture = T,
-                                           gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], low = low)
-    }
-    KL = KL + tmp$kl_l + tmp$kl_f
-    qg = update_qg(tmp, qg, k)
-    ## update Z
-    start = proc.time()
-    tmp = get_Ez(X, qg, K, threshold)
-    Ez = tmp$Ez
-    zeta = tmp$zeta
-    rm(tmp)
-
-    ll = compute_ll(X, qg)
-    ELBO = ll - KL
-    KLs <- c(KLs, KL)
-    ELBOs <- c(ELBOs, ELBO)
-    lls <- c(lls, ll)
-  }
-  return(list(qg = qg, ELBO = ELBOs, KL = KLs, ll = lls))
-}
-
-
-
-
-
-#'
-#' @export  ebpmf_exponential_mixture
-
-ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fix_grid = F, verbose = F, m = 2, init_method = "scd",
-                                      threshold =  NULL,
+ebpmf_gamma_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fix_grid = F, verbose = F, m = 2, init_method = "scd",
+                                      threshold =  NULL,uniform_mixture = F,
                                       seed = 123, Lam_true = NULL){
   set.seed(seed)
   ## init from NNLM::nnmf result
@@ -103,23 +55,25 @@ ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g =
   runtime_ez = runtime_ez + (proc.time() - start)[[3]]
 
   for(iter in 1:maxiter.out){
+    #if(iter == 73){browser()}
     KL = 0
     for(k in 1:K){
       ## update q, g
       start = proc.time()
       init_l  = list(mean = qg$qls_mean[,k])
       if(is.null(qg$gls[[k]])){
-        tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m)
+        tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m, uniform_mixture = uniform_mixture)
       }else{
         if(fix_g){
-          tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m,
-                                               gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], fix_gl = T, fix_gf = T)
+          tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m,
+                                               gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], fix_gl = T, fix_gf = T, uniform_mixture  = uniform_mixture)
         }else{
           if(fix_grid){
-            tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m,
-                                                 scale_l = list(a = qg$gls[[k]]$a, b = qg$gls[[k]]$b), scale_f = list(a = qg$gfs[[k]]$a, b = qg$gfs[[k]]$b))
+            tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m,
+                                                 scale_l = list(a = qg$gls[[k]]$a, b = qg$gls[[k]]$b),
+                                           scale_f = list(a = qg$gfs[[k]]$a, b = qg$gfs[[k]]$b), uniform_mixture  =  uniform_mixture)
           }else{
-            tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m)
+            tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m, uniform_mixture = uniform_mixture)
           }
         }
       }
@@ -159,9 +113,9 @@ ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g =
 
 ## ================== helper functions ==================================
 
-#' @export ebpmf_rank1_exponential_helper
+#' @export ebpmf_rank1_gamma_helper
 #'
-ebpmf_rank1_exponential_helper <- function(X, init = NULL, m = 2,
+ebpmf_rank1_gamma_helper <- function(X, init = NULL, m = 2,
                                            scale_l = "estimate", scale_f = "estimate", gl_init = NULL, gf_init = NULL, fix_gl = F, fix_gf = F,
                                            uniform_mixture = F,low = NULL,
                                            maxiter = 1,verbose = F){
@@ -187,9 +141,9 @@ ebpmf_rank1_exponential_helper <- function(X, init = NULL, m = 2,
     if(uniform_mixture){
       ## f
       gf_init = get_uniform_mixture(x = X_colsum,s = replicate(p,sum_El),grid_res = gf_init, m = m, low = low)
-      tmp_f = ebpm::ebpm_exponential_mixture(x = X_colsum, s = replicate(p,sum_El), m = m, g_init = gf_init, fix_g = T)
+      tmp_f = ebpm::ebpm_gamma_mixture(x = X_colsum, s = replicate(p,sum_El), m = m, g_init = gf_init, fix_g = T)
     }else{
-      tmp_f = ebpm::ebpm_exponential_mixture(x = X_colsum, s = replicate(p,sum_El), m = m,scale = scale_f, g_init = gf_init, fix_g = fix_gl,low = low)
+      tmp_f = ebpm::ebpm_gamma_mixture(x = X_colsum, s = replicate(p,sum_El), m = m,scale = scale_f, g_init = gf_init, fix_g = fix_gl,low = low)
     }
     qf = tmp_f$posterior
     gf = tmp_f$fitted_g
@@ -202,9 +156,9 @@ ebpmf_rank1_exponential_helper <- function(X, init = NULL, m = 2,
     if(uniform_mixture){
       ## f
       gl_init = get_uniform_mixture(x = X_rowsum,s = replicate(n,sum_Ef),grid_res = gl_init, m, low =  low)
-      tmp_l = ebpm::ebpm_exponential_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m, g_init = gl_init, fix_g = T)
+      tmp_l = ebpm::ebpm_gamma_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m, g_init = gl_init, fix_g = T)
     }else{
-      tmp_l = ebpm::ebpm_exponential_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m, scale = scale_l, g_init = gl_init, fix_g = fix_gf, low = low)
+      tmp_l = ebpm::ebpm_gamma_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m, scale = scale_l, g_init = gl_init, fix_g = fix_gf, low = low)
     }
     ql = tmp_l$posterior
     gl = tmp_l$fitted_g
