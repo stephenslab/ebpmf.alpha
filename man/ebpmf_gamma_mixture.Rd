@@ -6,7 +6,8 @@
 \usage{
 ebpmf_gamma_mixture(X, K, qg = NULL, maxiter.out = 10, fix_g = F,
   fix_grid = F, verbose = F, m = 2, init_method = "scd",
-  threshold = NULL, seed = 123, Lam_true = NULL)
+  threshold = NULL, uniform_mixture = F, seed = 123,
+  Lam_true = NULL)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}
