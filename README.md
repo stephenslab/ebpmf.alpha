@@ -5,7 +5,7 @@ See model details and derivations in https://github.com/stephenslab/ebpmf/blob/m
 
 ## Quick Start
 
-Install the ebpmf.alpha package using `devtools`:
+Install the `ebpmf.alpha` package using `devtools`:
 
 ```R
 library(devtools)
