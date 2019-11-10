@@ -30,8 +30,9 @@
 #' @export  ebpmf_gamma_mixture
 
 ebpmf_gamma_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fix_grid = F, verbose = F, m = 2, init_method = "scd",
-                                      threshold =  NULL,uniform_mixture = F,
-                                      seed = 123, Lam_true = NULL){
+                                theta_l = "one", theta_f = "one",
+                                threshold =  NULL,uniform_mixture = F,
+                                seed = 123, Lam_true = NULL){
   set.seed(seed)
   ## init from NNLM::nnmf result
   start = proc.time()
@@ -62,18 +63,21 @@ ebpmf_gamma_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fi
       start = proc.time()
       init_l  = list(mean = qg$qls_mean[,k])
       if(is.null(qg$gls[[k]])){
-        tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m, uniform_mixture = uniform_mixture)
+        tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m, uniform_mixture = uniform_mixture, theta_l = theta_l, theta_f = theta_f)
       }else{
         if(fix_g){
           tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m,
-                                               gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], fix_gl = T, fix_gf = T, uniform_mixture  = uniform_mixture)
+                                         gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], fix_gl = T, fix_gf = T,
+                                         uniform_mixture  = uniform_mixture, theta_l = theta_l, theta_f = theta_f)
         }else{
           if(fix_grid){
             tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m,
-                                                 scale_l = list(a = qg$gls[[k]]$a, b = qg$gls[[k]]$b),
-                                           scale_f = list(a = qg$gfs[[k]]$a, b = qg$gfs[[k]]$b), uniform_mixture  =  uniform_mixture)
+                                          scale_l = list(a = qg$gls[[k]]$a, b = qg$gls[[k]]$b),
+                                           scale_f = list(a = qg$gfs[[k]]$a, b = qg$gfs[[k]]$b),
+                                          uniform_mixture  =  uniform_mixture, theta_l = theta_l, theta_f = theta_f)
           }else{
-            tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m, uniform_mixture = uniform_mixture)
+            tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m,
+                                           uniform_mixture = uniform_mixture, theta_l = theta_l, theta_f = theta_f)
           }
         }
       }
@@ -116,7 +120,8 @@ ebpmf_gamma_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fi
 #' @export ebpmf_rank1_gamma_helper
 #'
 ebpmf_rank1_gamma_helper <- function(X, init = NULL, m = 2,
-                                           scale_l = "estimate", scale_f = "estimate", gl_init = NULL, gf_init = NULL, fix_gl = F, fix_gf = F,
+                                           scale_l = "estimate", scale_f = "estimate", theta_l = "one", theta_f = "one",
+                                     gl_init = NULL, gf_init = NULL, fix_gl = F, fix_gf = F,
                                            uniform_mixture = F,low = NULL,
                                            maxiter = 1,verbose = F){
   X_rowsum = rowSums(X)
@@ -141,9 +146,10 @@ ebpmf_rank1_gamma_helper <- function(X, init = NULL, m = 2,
     if(uniform_mixture){
       ## f
       gf_init = get_uniform_mixture(x = X_colsum,s = replicate(p,sum_El),grid_res = gf_init, m = m, low = low)
-      tmp_f = ebpm::ebpm_gamma_mixture(x = X_colsum, s = replicate(p,sum_El), m = m, g_init = gf_init, fix_g = T)
+      tmp_f = ebpm::ebpm_gamma_mixture_single_scale(x = X_colsum, s = replicate(p,sum_El), m = m, g_init = gf_init, fix_g = T, theta = theta_f)
     }else{
-      tmp_f = ebpm::ebpm_gamma_mixture(x = X_colsum, s = replicate(p,sum_El), m = m,scale = scale_f, g_init = gf_init, fix_g = fix_gl,low = low)
+      tmp_f = ebpm::ebpm_gamma_mixture_single_scale(x = X_colsum, s = replicate(p,sum_El), m = m,scale = scale_f, g_init = gf_init, fix_g = fix_gl,
+                                                    low = low, theta = theta_f)
     }
     qf = tmp_f$posterior
     gf = tmp_f$fitted_g
@@ -156,9 +162,10 @@ ebpmf_rank1_gamma_helper <- function(X, init = NULL, m = 2,
     if(uniform_mixture){
       ## f
       gl_init = get_uniform_mixture(x = X_rowsum,s = replicate(n,sum_Ef),grid_res = gl_init, m, low =  low)
-      tmp_l = ebpm::ebpm_gamma_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m, g_init = gl_init, fix_g = T)
+      tmp_l = ebpm::ebpm_gamma_mixture_single_scale(x = X_rowsum, s = replicate(n,sum_Ef), m = m, g_init = gl_init, fix_g = T, theta = theta_l)
     }else{
-      tmp_l = ebpm::ebpm_gamma_mixture(x = X_rowsum, s = replicate(n,sum_Ef), m = m, scale = scale_l, g_init = gl_init, fix_g = fix_gf, low = low)
+      tmp_l = ebpm::ebpm_gamma_mixture_single_scale(x = X_rowsum, s = replicate(n,sum_Ef), m = m, scale = scale_l, g_init = gl_init, fix_g = fix_gf,
+                                       low = low, theta = theta_l)
     }
     ql = tmp_l$posterior
     gl = tmp_l$fitted_g
