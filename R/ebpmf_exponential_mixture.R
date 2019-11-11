@@ -117,7 +117,7 @@ ebpmf_exponential_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g =
         }else{
           if(fix_grid){
             tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m,
-                                                 scale_l = list(a = qg$gls[[k]]$a, b = qg$gls[[k]]$b), scale_f = list(a = qg$gfs[[k]]$a, b = qg$gfs[[k]]$b))
+                                                 scale_l = qg$gls[[k]]$scale, scale_f = qg$gfs[[k]]$scale)
           }else{
             tmp = ebpmf_rank1_exponential_helper(X = Ez[,,k],init = init_l,m = m)
           }
