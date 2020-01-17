@@ -1,20 +1,21 @@
-#' @title Empirical Bayes Poisson Matrix Factorization with Mixture of Gamma as Prior Family
-#' @description Uses Empirical Bayes to fit the model \deqn{X_{ij}  ~ Poi(\sum_k L_{ik} F_{jk})} with \deqn{L_{.k} ~ g_k()}
-#' with g_k being either Mixture of gamma, or Point Gamma
+#' @title Empirical Bayes Poisson Matrix Factorization with Prior Family of mixture of two gammas
+#' @description Uses Empirical Bayes to fit the model \deqn{X_{ij}  ~ Poi(\sum_k L_{ik} F_{jk})} with \deqn{L_{.k} ~ g_k()}, where dim(X) = c(n,p); dim(L) = c(n,K); dim(F) = c(p,K)
 #' @import mixsqp
 #' @import ebpm
+#' @import gtools
+#' @import NNLM
 
 #' @details The model is fit in 2 stages: i) estimate \eqn{g} by maximum likelihood (over pi_k)
 #' ii) Compute posterior distributions for \eqn{\lambda_j} given \eqn{x_j,\hat{g}}.
 #' @param X count matrix (dim(X) = c(n, p)).
 #' @param K number of topics
-#' @param m multiplicative parameter for selecting grid in "ebpm::ebpm_gamma_mixture"
-#' @param maxiter.out  maximum iterations in the outer  loop
+#' @param  maxiter.out  maximum iterations in the outer  loop
+#' @param verbose T if print ELBO
 #' @param init_method used in \code{NNLM::nnmf}. Either `scd` or `lee`
 #' @param seed random seed
+#' @param rel_tol tolerance for relative difference for each `ebpm` problem
 #'
-#'
-#' @return A list containing elements:
+#' @return A list containing elements (this is freeuqntly updated):
 #'     \describe{
 #'       \item{\code{qls_mean}}{A n by k matrix: Approximate posterior mean for L}
 #'       \item{\code{qls_mean_log}}{A n by k matrix: Approximate posterior log mean for L}
@@ -23,16 +24,19 @@
 #'       \item{\code{qfs_mean_log}}{A p by k matrix: Approximate posterior log mean for F}
 #'       \item{\code{gfs}}{A list of K elements, each element is the estimated prior for the kth column of F}
 #'      }
-#' @examples
-#' To add
+#'
+#'
 
-
-#' @export  ebpmf_gamma_mixture
-
-ebpmf_gamma_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fix_grid = F, verbose = F, m = 2, init_method = "scd",
-                                scale_l = "max", scale_f = "max",
-                                threshold =  NULL,uniform_mixture = F,
-                                seed = 123, Lam_true = NULL){
+#'
+#' @export ebpmf_two_gamma
+#'
+#'
+ebpmf_two_gamma <- function(X, K,
+                            qg = NULL, maxiter.out = 10,
+                            fix_g = F, verbose = F,
+                            init_method = "scd",seed = 123,
+                            Lam_true = NULL,threshold = NULL,
+                            rel_tol = 1e-8){
   set.seed(seed)
   ## init from NNLM::nnmf result
   start = proc.time()
@@ -49,6 +53,7 @@ ebpmf_gamma_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fi
   rmses = c()
 
   start = proc.time()
+  #browser()
   tmp = get_Ez(X, qg, K, threshold)
   Ez = tmp$Ez
   zeta = tmp$zeta
@@ -62,24 +67,11 @@ ebpmf_gamma_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fi
       start = proc.time()
       init_l  = list(mean = qg$qls_mean[,k])
       if(is.null(qg$gls[[k]])){
-        tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m, uniform_mixture = uniform_mixture, scale_l = scale_l, scale_f = scale_f)
+        tmp = ebpmf_rank1_two_gamma_helper(X = Ez[,,k],init = init_l, rel_tol = rel_tol)
       }else{
-        if(fix_g){
-          tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m,
-                                         gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], fix_gl = T, fix_gf = T)
-        }else{
-          if(fix_grid){
-            tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m,
-                                          shape_l = qg$gls[[k]]$shape,
-                                          shape_f = qg$gfs[[k]]$shape,
-                                          scale_l = qg$gls[[k]]$scale[1],
-                                          scale_f = qg$gfs[[k]]$scale[1],
-                                          uniform_mixture  =  uniform_mixture)
-          }else{
-            tmp = ebpmf_rank1_gamma_helper(X = Ez[,,k],init = init_l,m = m,
-                                           uniform_mixture = uniform_mixture, scale_l = scale_l, scale_f = scale_f)
-          }
-        }
+        tmp = ebpmf_rank1_two_gamma_helper(X = Ez[,,k],init = init_l,rel_tol = rel_tol,
+                                             gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], fix_gl = fix_g, fix_gf = fix_g)
+
       }
       KL = KL + tmp$kl_l + tmp$kl_f
       qg = update_qg(tmp, qg, k)
@@ -100,6 +92,8 @@ ebpmf_gamma_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fi
       rmse = compute_rmse(Lam_true, qg$qls_mean %*% t(qg$qfs_mean))
       rmses = c(rmses, rmse)
     }
+
+
     if(verbose){
       print("iter         ELBO")
       print(sprintf("%d:    %f", iter, ELBO))
@@ -115,15 +109,15 @@ ebpmf_gamma_mixture <- function(X, K, qg = NULL, maxiter.out = 10, fix_g = F, fi
   return(list(qg = qg, ELBO = ELBOs, KL = KLs, ll = lls, RMSE = rmses))
 }
 
-## ================== helper functions ==================================
 
-#' @export ebpmf_rank1_gamma_helper
-#'
-ebpmf_rank1_gamma_helper <- function(X, init = NULL, m = 2,
-                                     shape_l = "estimate", shape_f = "estimate", scale_l = "max", scale_f = "max",
-                                     gl_init = NULL, gf_init = NULL, fix_gl = F, fix_gf = F,
-                                     uniform_mixture = F,low = NULL,
-                                     maxiter = 1,verbose = F){
+## ================== helper functions ==================================
+#' @export  ebpmf_rank1_two_gamma_helper
+ebpmf_rank1_two_gamma_helper <- function(X, init = NULL,
+                                         gl_init = NULL, gf_init = NULL,
+                                         fix_gl = F,fix_gf = F,
+                                         maxiter = 1, seed = 123,
+                                         verbose = F, rel_tol = 1e-8){
+  set.seed(seed)
   X_rowsum = rowSums(X)
   X_colsum = colSums(X)
   p = length(X_colsum)
@@ -139,20 +133,22 @@ ebpmf_rank1_gamma_helper <- function(X, init = NULL, m = 2,
     ql =  list(mean = nnmf_res$W[,1])
   }else{ql = init}
 
+  #browser()
   for(i in 1:maxiter){
     ## update q(f), g(f)
     sum_El = sum(ql$mean)
 
-    if(uniform_mixture){
-      ## f
-      gf_init = get_uniform_mixture(x = X_colsum,s = replicate(p,sum_El),grid_res = gf_init, m = m, low = low)
-      tmp_f = ebpm::ebpm_gamma_mixture_single_scale(x = X_colsum, s = replicate(p,sum_El), m = m, g_init = gf_init, fix_g = T)
+    if(is.null(gf_init)){
+      tmp_f = ebpm::ebpm_two_gamma(x = X_colsum, s = replicate(p,sum_El),
+                                   g_init = NULL)
     }else{
-      tmp_f = ebpm::ebpm_gamma_mixture_single_scale(x = X_colsum, s = replicate(p,sum_El), m = m,
-                                                    shape = shape_f,scale = scale_f,
-                                                    g_init = gf_init, fix_g = fix_gl,
-                                                    low = low)
+      tmp_f = ebpm::ebpm_two_gamma(x = X_colsum, s = replicate(p,sum_El), g_init = gf_init,
+                                   fix_g = fix_gf)
     }
+    # g0 = list(pi0 = 0.5, shape1 = 1, scale1 = 1, shape2 = 10, scale2 = 1/10)
+    # tmp_f = ebpm::ebpm_two_gamma(x = X_colsum, s = replicate(p,sum_El),
+    #                              fix_g = fix_gf, pi0 = pi0_f, g_init = g0)
+
     qf = tmp_f$posterior
     gf = tmp_f$fitted_g
     ll_f = tmp_f$log_likelihood
@@ -160,23 +156,22 @@ ebpmf_rank1_gamma_helper <- function(X, init = NULL, m = 2,
     kl_f = compute_kl(X_colsum, replicate(p,sum_El), tmp_f)
     ## update q(l), g(l)
     sum_Ef = sum(qf$mean)
-
-    if(uniform_mixture){
-      ## f
-      gl_init = get_uniform_mixture(x = X_rowsum,s = replicate(n,sum_Ef),grid_res = gl_init, m, low =  low)
-      tmp_l = ebpm::ebpm_gamma_mixture_single_scale(x = X_rowsum, s = replicate(n,sum_Ef), m = m, g_init = gl_init, fix_g = T)
+    # #browser()
+    if(is.null(gl_init)){
+      tmp_l = ebpm_two_gamma(x = X_rowsum, s = replicate(n,sum_Ef), g_init = NULL)
     }else{
-      tmp_l = ebpm::ebpm_gamma_mixture_single_scale(x = X_rowsum, s = replicate(n,sum_Ef), m = m,
-                                                    shape = shape_l, scale = scale_l,
-                                                    g_init = gl_init, fix_g = fix_gf,
-                                                    low = low)
+      tmp_l = ebpm_two_gamma(x = X_rowsum, s = replicate(n,sum_Ef), g_init = gl_init,
+                             fix_g = fix_gl)
     }
+
+    # tmp_l = ebpm::ebpm_two_gamma(x = X_rowsum, s = replicate(n,sum_Ef),
+    #                        fix_g = fix_gl, pi0 = pi0_l, g_init = g0)
+
     ql = tmp_l$posterior
     gl = tmp_l$fitted_g
     ll_l = tmp_l$log_likelihood
     ### compute KL(q(l) || g(l)) = -Eq log(g(l)/q(l))
     kl_l = compute_kl(X_rowsum, replicate(n,sum_Ef), tmp_l)
-    qg = list(ql = ql, gl = gl, ll_l = ll_l, kl_l = kl_l, qf = qf, gf = gf, ll_f = ll_f, kl_f = kl_f)
 
     if(verbose){
       ## compute ELBO (for debugging)
@@ -187,8 +182,16 @@ ebpmf_rank1_gamma_helper <- function(X, init = NULL, m = 2,
       elbo = ll - kl_l - kl_f
       print(sprintf("%3d   %.10f  %.10f   %.10f   %.10f   %.10f", i, elbo, kl_l, kl_f, sum_El, sum_Ef))
     }
+    qg = list(ql = ql, gl = gl, kl_l = kl_l, qf = qf, gf = gf, kl_f = kl_f)
   }
   return(qg)
 }
+
+
+
+
+
+
+
 
 
