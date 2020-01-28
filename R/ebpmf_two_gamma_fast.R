@@ -1,4 +1,4 @@
-#' @title Empirical Bayes Poisson Matrix Factorization with Prior Family of mixture of two gammas
+#' @title Empirical Bayes Poisson Matrix Factorization with Prior Family of mixture of two gammas (fast)
 #' @description Uses Empirical Bayes to fit the model \deqn{X_{ij}  ~ Poi(\sum_k L_{ik} F_{jk})} with \deqn{L_{.k} ~ g_k()}, where dim(X) = c(n,p); dim(L) = c(n,K); dim(F) = c(p,K)
 #' @import mixsqp
 #' @import ebpm
@@ -28,15 +28,15 @@
 #'
 
 #'
-#' @export ebpmf_two_gamma
+#' @export ebpmf_two_gamma_fast
 #'
 #'
-ebpmf_two_gamma <- function(X, K,
+ebpmf_two_gamma_fast <- function(X, K,
                             qg = NULL, maxiter.out = 10,
                             fix_g = F, verbose = F,
                             init_method = "scd",seed = 123,
-                            Lam_true = NULL,threshold = NULL,
-                            rel_tol = 1e-8){
+                            Lam_true = NULL,threshold = NULL
+                            ){
   set.seed(seed)
   ## init from NNLM::nnmf result
   start = proc.time()
@@ -68,9 +68,9 @@ ebpmf_two_gamma <- function(X, K,
       start = proc.time()
       init_l  = list(mean = qg$qls_mean[,k])
       if(is.null(qg$gls[[k]])){
-        tmp = ebpmf_rank1_two_gamma_helper(X = Ez[,,k],init = init_l, rel_tol = rel_tol)
+        tmp = ebpmf_rank1_two_gamma_helper_fast(X = Ez[,,k],init = init_l)
       }else{
-        tmp = ebpmf_rank1_two_gamma_helper(X = Ez[,,k],init = init_l,rel_tol = rel_tol,
+        tmp = ebpmf_rank1_two_gamma_helper_fast(X = Ez[,,k],init = init_l,
                                              gl_init = qg$gls[[k]], gf_init = qg$gfs[[k]], fix_gl = fix_g, fix_gf = fix_g)
 
       }
@@ -112,12 +112,12 @@ ebpmf_two_gamma <- function(X, K,
 
 
 ## ================== helper functions ==================================
-#' @export  ebpmf_rank1_two_gamma_helper
-ebpmf_rank1_two_gamma_helper <- function(X, init = NULL,
+#' @export  ebpmf_rank1_two_gamma_helper_fast
+ebpmf_rank1_two_gamma_helper_fast <- function(X, init = NULL,
                                          gl_init = NULL, gf_init = NULL,
                                          fix_gl = F,fix_gf = F,
                                          maxiter = 1, seed = 123,
-                                         verbose = F, rel_tol = 1e-8){
+                                         verbose = F){
   set.seed(seed)
   X_rowsum = rowSums(X)
   X_colsum = colSums(X)
@@ -159,9 +159,9 @@ ebpmf_rank1_two_gamma_helper <- function(X, init = NULL,
     sum_Ef = sum(qf$mean)
     # #browser()
     if(is.null(gl_init)){
-      tmp_l = ebpm_two_gamma(x = X_rowsum, s = replicate(n,sum_Ef), g_init = NULL)
+      tmp_l = ebpm_two_gamma_fast(x = X_rowsum, s = replicate(n,sum_Ef), g_init = NULL)
     }else{
-      tmp_l = ebpm_two_gamma(x = X_rowsum, s = replicate(n,sum_Ef), g_init = gl_init,
+      tmp_l = ebpm_two_gamma_fast(x = X_rowsum, s = replicate(n,sum_Ef), g_init = gl_init,
                              fix_g = fix_gl)
     }
 

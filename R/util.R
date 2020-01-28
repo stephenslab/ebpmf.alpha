@@ -57,8 +57,8 @@ initialize_qg_from_LF <- function(L0,F0){
   return(qg)
 }
 
-initialize_qg <- function(X, K, init_method = "scd", seed = 123){
-  nnmf_fit = NNLM::nnmf(A = X, k = K, loss = "mkl", max.iter = 20, verbose = F, method = init_method)
+initialize_qg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
+  nnmf_fit = NNLM::nnmf(A = X, k = K, loss = "mkl", max.iter = init_iter, verbose = F, method = init_method)
   qls_mean = nnmf_fit$W
   qfs_mean = t(nnmf_fit$H)
   qls_mean_log = log(nnmf_fit$W)
