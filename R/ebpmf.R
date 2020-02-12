@@ -37,6 +37,7 @@ ebpmf <- function(X, K,pm_func = ebpm::ebpm_point_gamma,
   rm(init_tmp)
   # update iteratively
   for(i in 1:maxiter){
+    #if(i == 30){browser()}
     KL = 0
     for(k in 1:K){
       X_rs = rowSums(Ez[,,k])
@@ -55,7 +56,7 @@ ebpmf <- function(X, K,pm_func = ebpm::ebpm_point_gamma,
     ## verbose
     if(verbose){
       print("iter         ELBO")
-      print(sprintf("%d:    %f", iter, ELBO))
+      print(sprintf("%d:    %f", i, ELBO))
     }
     ## check convergence
     diff = ifelse(i > 2, ELBOs[i] - ELBOs[i-1], Inf)

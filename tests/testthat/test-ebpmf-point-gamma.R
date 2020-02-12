@@ -52,9 +52,9 @@ hist(sim$X, breaks = 100)
 
 ## ebpmf
 #browser()
-out_ebpmf = ebpmf::ebpmf_point_gamma(sim$X, 1, maxiter.out = 100, fix_g = T)
+out_ebpmf = ebpmf.alpha::ebpmf_point_gamma(sim$X, 1, maxiter.out = 100, fix_g = T)
 
-out_ebpmf = ebpmf::ebpmf_point_gamma(sim$X, K, maxiter.out = 100, fix_g = T)
+out_ebpmf = ebpmf.alpha::ebpmf_point_gamma(sim$X, K, maxiter.out = 100, fix_g = T)
 
 #plot(out_ebpmf$ELBO)
 

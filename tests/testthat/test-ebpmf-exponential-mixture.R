@@ -55,7 +55,7 @@ sim = simulate_pm(n, p, dl, df, K, scale_b = scale_b)
 #out_ebpmf = ebpmf::ebpmf_exponential_mixture(sim$X, K, maxiter.out = 100, uniform_mixture = T)
 
 
-out_ebpmf = ebpmf::ebpmf_exponential_mixture(sim$X, K, maxiter.out = 100)
+out_ebpmf = ebpmf.alpha::ebpmf_exponential_mixture(sim$X, K, maxiter.out = 100)
 
 ## plot ELBOs & KLs
 plot(out_ebpmf$ELBO, type = "l")
@@ -103,25 +103,25 @@ test_that("validation loglikelihood beats nnmf", {
 #   expect_false(any(elbos[1:(n-1)] > elbos[2:n]))
 # })
 
-
-## experiment to see RMSE on Lambda
-Lam_true = sim$L %*% t(sim$F)
-try_experiment_rmse <- function(iter, Lam_true){
-  test = ebpmf::ebpmf_exponential_mixture(sim$X, K, maxiter.out = iter)
-  Lam = test$qg$qls_mean %*% t(test$qg$qfs_mean)
-  return(sum((Lam - Lam_true)^2))
-}
-
-iters = seq(10,50,10)
-rmses <- c()
-for(iter in iters){
-  rmse = try_experiment_rmse(iter, Lam_true)
-  rmses = c(rmses, rmse)
-}
-
-## testing:
-test_that("rmse decreases monotonically", {
-  n = length(rmses)
-  expect_false(any(rmses[1:(n-1)] < rmses[2:n]))
-})
+#
+# ## experiment to see RMSE on Lambda
+# Lam_true = sim$L %*% t(sim$F)
+# try_experiment_rmse <- function(iter, Lam_true){
+#   test = ebpmf.alpha::ebpmf_exponential_mixture(sim$X, K, maxiter.out = iter)
+#   Lam = test$qg$qls_mean %*% t(test$qg$qfs_mean)
+#   return(sum((Lam - Lam_true)^2))
+# }
+#
+# iters = seq(10,50,10)
+# rmses <- c()
+# for(iter in iters){
+#   rmse = try_experiment_rmse(iter, Lam_true)
+#   rmses = c(rmses, rmse)
+# }
+#
+# ## testing:
+# test_that("rmse decreases monotonically", {
+#   n = length(rmses)
+#   expect_false(any(rmses[1:(n-1)] < rmses[2:n]))
+# })
 
