@@ -51,18 +51,21 @@ initialize_qg_from_LF <- function(L0,F0){
   qfs_mean = F0
   qls_mean_log = log(L0)
   qfs_mean_log = log(F0)
-  qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
-            qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
+  qg = list(qls_mean = qls_mean, qls_mean_log = qls_mean_log,
+            qfs_mean = qfs_mean, qfs_mean_log = qfs_mean_log,
             gls = replicate(K, list(NULL)),gfs = replicate(K, list(NULL)))
   return(qg)
 }
 
 initialize_qg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
-  nnmf_fit = NNLM::nnmf(A = X, k = K, loss = "mkl", max.iter = init_iter, verbose = F, method = init_method)
+  set.seed(seed)
+  nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, loss = "mkl", max.iter = init_iter, verbose = F, method = init_method)
   qls_mean = nnmf_fit$W
+  qls_mean[qls_mean == 0] = 1e-10
   qfs_mean = t(nnmf_fit$H)
-  qls_mean_log = log(nnmf_fit$W)
-  qfs_mean_log = log(t(nnmf_fit$H))
+  qfs_mean[qfs_mean == 0] = 1e-10
+  qls_mean_log = log(qls_mean)
+  qfs_mean_log = log(qfs_mean)
   qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
             qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
             gls = replicate(K, list(NULL)),gfs = replicate(K, list(NULL)))
@@ -176,6 +179,11 @@ operate_lf <- function(L, F, operation){
   return(out)
 }
 
+# Apply operation f to all nonzeros of a sparse matrix.
+apply.nonzeros <- function (X, f) {
+  d <- summary(X)
+  return(sparseMatrix(i = d$i,j = d$j,x = f(d$x),dims = dim(X)))
+}
 
 
 

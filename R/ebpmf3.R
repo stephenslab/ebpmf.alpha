@@ -1,18 +1,29 @@
 ## faster than ebpmf
+library(Matrix) ## todo
 
-ebpmf2 <- function(X, K,pm_func = ebpm::ebpm_point_gamma,
+## B_k = exp( <log(l_ik)> + <log(f_jk)>)
+## B = sum_k B_k
+## Lam_k = <l_ik> * <f_jk>
+## Lam = sum_k Lam_k
+
+## I store B, B_k for nonzero X_ij, as vectors
+
+## ELBO = - sum(Lam) + sum(X * log(B)) + sum(KL) - sum(log(X!))
+
+ebpmf3 <- function(X, K,pm_func = ebpm::ebpm_point_gamma,
                   init = list(qg = NULL, init_method = "scd", init_iter = 20), pm_control = NULL,
                   fix_g = list(l = FALSE, f = FALSE), maxiter = 100,
                   tol = 1e-8, verbose = FALSE){
-  #browser()
-  ## get nonzero index
-  mask_nz <- (X != 0)
-  X_nz = X[mask_nz]
-  ix <- which(X !=0, arr.ind = TRUE)
+  ## transform to sparse matrix ## TODO: when we prefer to use dense matrix?
+  X <- as(X, "sparseMatrix") ## TODO: which format is better?
+  d = summary(X)
+  #const = sum(apply.nonzeros(X = X + 1, f = lgamma))
+  const = 0 ## TODO: use sum(lgamma(X + 1))
+
   ## initialization
-  init_tmp <- init_ebpmf(X = X, K = K, init = init, mask_nz = mask_nz)
+  init_tmp <- init_ebpmf(X = X, K = K, init = init, d = d)
   qg <- init_tmp$qg
-  D <- init_tmp$D
+  B <- init_tmp$B
   rm(init_tmp)
 
   ## update iteratively
@@ -21,24 +32,23 @@ ebpmf2 <- function(X, K,pm_func = ebpm::ebpm_point_gamma,
     KL <- 0
     for(k in 1:K){
       ## compute Ez (list(rs, cs, B))
-      Ez <- compute_EZ(X_nz = X_nz, D = D,
-                       ql_log = qg$qls_mean_log[,k], qf_log = qg$qfs_mean_log[,k],
-                       mask_nz = mask_nz, ix = ix)
+      Ez <- compute_EZ(B = B, d = d,
+                       ql_log = qg$qls_mean_log[,k], qf_log = qg$qfs_mean_log[,k])
       ## rank1 update (list(D, kl_l, kl_f, qg))
       init_r1 = list(sf = sum(qg$qls_mean[,k]),
                      gl = qg$gls[[k]], gf = qg$gfs[[k]])
-      rank1_tmp <- rank1(D_minus = D - Ez$B,
-                         X_rs = Ez$rs, X_cs = Ez$cs,
+      rank1_tmp <- rank1(d = d, X_rs = Ez$rs, X_cs = Ez$cs,
                          pm_func = pm_func, pm_control = pm_control,
-                         init = init_r1, fix_g = fix_g, mask_nz = mask_nz, ix = ix)
+                         init = init_r1, fix_g = fix_g,
+                         B = B, B_k = Ez$B_k)
       rm(Ez)
-      D = rank1_tmp$D
+      B = rank1_tmp$B
       KL = KL + rank1_tmp$kl_l + rank1_tmp$kl_f
-      #print(sprintf("i = %d, k = %d, KL = %f", i, k, KL))
       qg = update_qg(rank1_tmp$qg, qg, k)
+      rm(rank1_tmp)
     }
     ## compute ELBO
-    ELBO = compute_ll(X, qg) - KL
+    ELBO = - sum( colSums(qg$qls_mean) * colSums(qg$qfs_mean) ) + sum(d$x * log(B)) - KL - const
     ELBOs <- c(ELBOs, ELBO)
     ## verbose
     if(verbose){
@@ -55,31 +65,33 @@ ebpmf2 <- function(X, K,pm_func = ebpm::ebpm_point_gamma,
   return(list(qg = qg, ELBO = ELBOs))
 }
 
-## output: qg, D
-init_ebpmf <- function(X,K, init, mask_nz){
+## output: qg, B
+init_ebpmf <- function(X,K, init, d){
   start = proc.time()
   qg = init$qg
   if(is.null(qg)){
     qg = initialize_qg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
   }
-  D = (exp(qg$qls_mean_log) %*% t(exp(qg$qfs_mean_log)))[mask_nz]
+  ## TODO: speedup
+  B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1])
+  for(k in 2:K){
+    B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
+  }
   runtime = proc.time() - start
   print(runtime)
-  return(list(qg = qg, D = D))
+  return(list(qg = qg, B = B))
 }
 
-compute_EZ <- function(X_nz, D, ql_log, qf_log, mask_nz, ix){
-  ## todo: speed up by only calculating nonzero ones
-  #B = exp(outer(ql_log, qf_log, "+"))[mask_nz] ## (speedup!!)
-  B = exp(ql_log[ix[,1]] + qf_log[ix[,2]])
-  Ez_sub = X_nz * (B/D)
-  Ez_sub[D == 0] = 0 ## to check
-  Ez = array(0, dim = dim(mask_nz))
-  Ez[mask_nz] = Ez_sub
-  return(list(rs = rowSums(Ez), cs = colSums(Ez), B = B))
+compute_EZ <- function(d, B, ql_log, qf_log){
+  B_k = exp(ql_log[d$i] + qf_log[d$j])
+  Ez.val = replicate(length(d$i), 0)
+  mask <- (B != 0)
+  Ez.val[mask] = d$x[mask] * B_k[mask]/B[mask]
+  Ez = sparseMatrix(i = d$i, j = d$j, x = Ez.val)
+  return(list(rs = rowSums(Ez), cs = colSums(Ez), B_k = B_k))
 }
 
-rank1 <- function(D_minus, X_rs, X_cs, pm_func,pm_control, init, fix_g, mask_nz, ix){
+rank1 <- function(d, X_rs, X_cs, pm_func,pm_control, init, fix_g, B, B_k){
   p = length(X_cs)
   n = length(X_rs)
   ## initialization (in fact, any non-negative number well do)
@@ -94,14 +106,15 @@ rank1 <- function(D_minus, X_rs, X_cs, pm_func,pm_control, init, fix_g, mask_nz,
   sl = sum(fit_f$posterior$mean)
   fit_l = do.call(pm_func, c(list(x = X_rs, s = sl, g_init = init$gl), pm_control))
   kl_l = compute_kl(X_rs, sl, fit_l)
-  ## update D (speedup!!)
-  # D = D_minus + exp(outer(fit_l$posterior$mean_log,fit_f$posterior$mean_log,"+"))[mask_nz]
-  D = D_minus + exp(fit_l$posterior$mean_log[ix[,1]] + fit_f$posterior$mean_log[ix[,2]])
+  ## update B
+  B = B - B_k + exp(fit_l$posterior$mean_log[d$i] + fit_f$posterior$mean_log[d$j])
   ## list to return
   qg = list(ql = fit_l$posterior, gl = fit_l$fitted_g, qf = fit_f$posterior, gf = fit_f$fitted_g)
-  out = list(qg = qg, kl_l = kl_l, kl_f = kl_f, D = D)
+  out = list(qg = qg, kl_l = kl_l, kl_f = kl_f, B = B)
   return(out)
 }
+
+
 
 
 
