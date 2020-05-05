@@ -4,7 +4,7 @@
 \alias{rank1}
 \title{Empirical Bayes Poisson Matrix Factorization (rank 1)}
 \usage{
-rank1(D_minus, X_rs, X_cs, pm_func, pm_control, init, fix_g, mask_nz)
+rank1(d, X_rs, X_cs, pm_func, pm_control, init, fix_g, B, B_k)
 }
 \arguments{
 \item{X_rs, }{rowSums of X,  count matrix (dim(X) = c(n, p)).}
