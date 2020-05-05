@@ -3,7 +3,8 @@ R package to fit the Empirical Bayes Poisson Matrix Factorization.  It is in act
 
 See model details and derivations in https://zihao12.github.io/ebpmf_demo/ebpmf.pdf
 
-See an example where `ebpmf` recovers sparse structures: https://zihao12.github.io/ebpmf_demo/demo_sparse_ebpmf_two_gamma.html
+See working progress here: https://zihao12.github.io/ebpmf_demo/current_progress_ebpmf
+
 
 ## Quick Start
 
