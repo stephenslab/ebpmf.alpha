@@ -57,6 +57,8 @@ ebpmf_bg <- function(X, K, pm_func = ebpm::ebpm_gamma_mixture,
   for(i in 1:maxiter){
     KL <- 0
     for(k in 1:K){
+			print(k)
+			if(i == 2 && k == 3){browser()}
 			## B_k, Lam_k
  			B_k = exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k]) * l0f0
   		Lam_k = (l0 * qg$qls_mean[,k]) %o% (f0 * qg$qfs_mean[,k])
@@ -81,8 +83,8 @@ ebpmf_bg <- function(X, K, pm_func = ebpm::ebpm_gamma_mixture,
     }
 		## update l0, f0
 		## TODO : fix bug here (X_rs[84] = 1, while denom = 0, because of numerical issue)
-    f0 <- X_cs/colSums(l0 * Lam)
-    l0 <- X_rs/colSums(f0 * t(Lam))
+    f0 <- (X_cs/colSums(Lam)) * f0
+    l0 <- (X_rs/rowSums(Lam)) * l0
     l0f0 = f0[d$j] * l0[d$i]
 
     ## compute ELBO
@@ -115,7 +117,8 @@ initialize_qg_bg <- function(X, K, init_method = "scd", init_iter = 20, seed = 1
   qfs_mean[qfs_mean == 0] = 1e-10
   qls_mean_log = log(qls_mean)
   qfs_mean_log = log(qfs_mean)
-	al = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
+	#al = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
+	al = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50)
 	D = length(al)
 	g = gammamix(pi = replicate(D, 1/D), shape = al, scale = 1/al)
   qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
