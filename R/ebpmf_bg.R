@@ -24,11 +24,8 @@
 #' To add
 #' @export  ebpmf_bg
 
-library(ebpm)
-library(ebpmf.alpha)
-library(Matrix)
-source("~/Desktop/git/ebpmf.alpha/r/util.R")
-ebpmf_bg <- function(X, K, pm_func = ebpm::ebpm_gamma_mixture,
+ebpmf_bg <- function(X, K, 
+									 pm_func = ebpm::ebpm_point_gamma,
                    init = list(qg = NULL, init_method = "scd", init_iter = 20), pm_control = NULL,
                    fix_g = list(l = FALSE, f = FALSE), maxiter = 100,
                    tol = 1e-8, verbose = FALSE){
@@ -55,11 +52,10 @@ ebpmf_bg <- function(X, K, pm_func = ebpm::ebpm_gamma_mixture,
 		#print(i)
     KL <- 0
     for(k in 1:K){
-			#print(k)
 			## store B_k
  			B_k = exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k]) 
     	## compute q(Z)
-      Ez <- compute_EZ_bg(d = d,B,B_k)
+      Ez <- compute_EZ_bg(d = d,B = B,B_k = B_k)
       ## update (qL, gL, qF, gF) 
       init_r1 = list(sf = sum(qg$qls_mean[,k]),
                      gl = qg$gls[[k]], gf = qg$gfs[[k]])
@@ -71,18 +67,28 @@ ebpmf_bg <- function(X, K, pm_func = ebpm::ebpm_gamma_mixture,
       qg = update_qg(rank1_tmp$qg, qg, k)
       rm(rank1_tmp)
 			## update B, Lam
-			B = B - B_k + exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k]) 
+			B = B - B_k + exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k])
+		 #	B[B < 0] <- 1e-20 ## numerical issue gets - epsilon	
     }
+
+		test = - sum( colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) +
+            sum(d$x * (log(l0[d$i]) + log(f0[d$j]) + log(B)) ) - KL - const
+
+		f0_ = f0
+
 		## update l0, f0
 		denom <- colSums( t(qg$qls_mean) * colSums(f0 * qg$qfs_mean)) 
-    l0 <- X_rs/denom
+		l0 <- X_rs/denom
 		denom <- colSums( t(qg$qfs_mean) * colSums(l0 * qg$qls_mean)) 
     f0 <- X_cs/denom
     ## compute ELBO
-    ELBO = - sum( colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) + 
-						sum(d$x * log(B) ) - KL - const
+    ELBO = - sum( colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) +
+						sum(d$x * (log(l0[d$i]) + log(f0[d$j]) + log(B)) ) - KL - const 	
+		if(test > ELBO){browser()}
+
+		#if(is.infinite(ELBO)){browser()}
 		ELBOs <- c(ELBOs, ELBO)
-    ## verbose
+		## verbose
     if(verbose){
       print("iter         ELBO")
       print(sprintf("%d:    %f", i, ELBO))
@@ -110,12 +116,12 @@ initialize_qg_bg <- function(X, K, init_method = "scd", init_iter = 20, seed = 1
   qls_mean_log = log(qls_mean)
   qfs_mean_log = log(qfs_mean)
 	#al = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
-	al = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50)
-	D = length(al)
-	g = gammamix(pi = replicate(D, 1/D), shape = al, scale = 1/al)
+	aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50)
+	D = length(aL)
+	gf = gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
   qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
             qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
-            gls = rep(list(g), K),gfs = rep(list(g), K))
+            gls = rep(list(NULL), K),gfs = rep(list(gf), K))
   return(qg)
 }
 
@@ -125,12 +131,17 @@ init_ebpmf_bg <- function(X,K, init, d){
   start = proc.time()
   qg = init$qg
   if(is.null(qg)){
-    qg = initialize_qg_bg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
+    qg = initialize_qg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
   }
 	f0 = apply(qg$qfs_mean ,1, median)
-	f0[f0 == 0] = 1e-10
+	f0[f0 == 0] = 1e-4
 	l0 = apply(qg$qls_mean ,1, median)
-	l0[l0 == 0] = 1e-10
+	l0[l0 == 0] = 1e-4
+	
+	l0 = replicate(nrow(X), 1)
+#	f0 = replicate(ncol(X), 1)
+	denom <- colSums( t(qg$qfs_mean) * colSums(l0 * qg$qls_mean))
+  f0 <- Matrix::colSums(X)/denom
   ## TODO: speedup
   B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1]) 
   for(k in 2:K){
@@ -147,13 +158,6 @@ compute_EZ_bg <- function(d, B, B_k){
   Ez.val[mask] = d$x[mask] * B_k[mask]/B[mask]
   Ez = sparseMatrix(i = d$i, j = d$j, x = Ez.val)
   return(list(rs = Matrix::rowSums(Ez), cs = Matrix::colSums(Ez)))
-}
-
-
-compute_kl_ebpm <- function(y,s, posterior, ll){
-  mask <- (y != 0)
-  E_loglik = - sum(s * posterior$mean) + sum(y[mask] * log(s[mask])) + sum(y[mask]*posterior$mean_log[mask])- sum(lgamma(y[mask] + 1))
-  return(E_loglik - ll)
 }
 
 #' @title Empirical Bayes Poisson Matrix Factorization (rank 1)
@@ -183,7 +187,6 @@ compute_kl_ebpm <- function(y,s, posterior, ll){
 
 ## TODO: uupdate KL, Lam
 rank1_bg <- function(d, X_rs, X_cs, l0, f0, pm_func,pm_control, init, fix_g){
-	browser()
   p = length(X_cs)
   n = length(X_rs)
   ## initialization (in fact, any non-negative number well do)
@@ -192,11 +195,11 @@ rank1_bg <- function(d, X_rs, X_cs, l0, f0, pm_func,pm_control, init, fix_g){
 		sf = 1
   }
   ## fit for f, and compute kl_f
-  fit_f = do.call(pm_func, c(list(x = X_cs, s = sf*f0, g_init = init$gf), pm_control))
+	fit_f = do.call(pm_func, c(list(x = X_cs, s = sf*f0, g_init = init$gf, fix_g = fix_g$f), pm_control))
   kl_f = compute_kl_ebpm(y = X_cs, s = sf*f0, posterior = fit_f$posterior, ll = fit_f$log_likelihood)
   ## fit for l, and compute kl_l
   sl = sum(fit_f$posterior$mean)
-  fit_l = do.call(pm_func, c(list(x = X_rs, s = sl*l0, g_init = init$gl), pm_control))
+  fit_l = do.call(pm_func, c(list(x = X_rs, s = sl*l0, g_init = init$gl, fix_g = fix_g$l), pm_control))
   kl_l = compute_kl_ebpm(y = X_rs, s = sl*l0, posterior = fit_l$posterior, ll = fit_l$log_likelihood)
   ## list to return
   qg = list(ql = fit_l$posterior, gl = fit_l$fitted_g, qf = fit_f$posterior, gf = fit_f$fitted_g)
