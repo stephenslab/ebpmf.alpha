@@ -35,9 +35,9 @@ ebpmf_bg <- function(X, K, pm_func = ebpm::ebpm_gamma_mixture,
 	## TODO: input check, require X_rs, X_cs to be nonzero
 
   ## transform to sparse matrix 
-	X_rs = rowSums(X)
-	X_cs = colSums(X)
   X <- as(X, "sparseMatrix") 
+	X_rs = Matrix::rowSums(X)
+	X_cs = Matrix::colSums(X)
   d = summary(X)
   #const = sum(apply.nonzeros(X = X + 1, f = lgamma))
   const = 0 ## TODO: use sum(lgamma(X + 1))
@@ -46,26 +46,20 @@ ebpmf_bg <- function(X, K, pm_func = ebpm::ebpm_gamma_mixture,
   init_tmp <- init_ebpmf_bg(X = X, K = K, init = init, d = d)
   qg <- init_tmp$qg
   B <- init_tmp$B
-	Lam <- init_tmp$Lam
 	l0 <- init_tmp$l0
 	f0 <- init_tmp$f0
-	l0f0 = f0[d$j] * l0[d$i]
   rm(init_tmp)
-
   ## update iteratively
   ELBOs <- c()
   for(i in 1:maxiter){
+		#print(i)
     KL <- 0
     for(k in 1:K){
-			print(k)
-			if(i == 2 && k == 3){browser()}
-			## B_k, Lam_k
- 			B_k = exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k]) * l0f0
-  		Lam_k = (l0 * qg$qls_mean[,k]) %o% (f0 * qg$qfs_mean[,k])
-
+			#print(k)
+			## store B_k
+ 			B_k = exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k]) 
     	## compute q(Z)
       Ez <- compute_EZ_bg(d = d,B,B_k)
-
       ## update (qL, gL, qF, gF) 
       init_r1 = list(sf = sum(qg$qls_mean[,k]),
                      gl = qg$gls[[k]], gf = qg$gfs[[k]])
@@ -76,19 +70,17 @@ ebpmf_bg <- function(X, K, pm_func = ebpm::ebpm_gamma_mixture,
       KL = KL + rank1_tmp$kl_l + rank1_tmp$kl_f
       qg = update_qg(rank1_tmp$qg, qg, k)
       rm(rank1_tmp)
-
 			## update B, Lam
-			B = B - B_k + exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k]) * l0f0
-			Lam = Lam - Lam_k + (l0 * qg$qls_mean[,k]) %o% (f0 * qg$qfs_mean[,k])
+			B = B - B_k + exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k]) 
     }
 		## update l0, f0
-		## TODO : fix bug here (X_rs[84] = 1, while denom = 0, because of numerical issue)
-    f0 <- (X_cs/colSums(Lam)) * f0
-    l0 <- (X_rs/rowSums(Lam)) * l0
-    l0f0 = f0[d$j] * l0[d$i]
-
+		denom <- colSums( t(qg$qls_mean) * colSums(f0 * qg$qfs_mean)) 
+    l0 <- X_rs/denom
+		denom <- colSums( t(qg$qfs_mean) * colSums(l0 * qg$qls_mean)) 
+    f0 <- X_cs/denom
     ## compute ELBO
-    ELBO = -sum( f0 * colSums(l0*Lam) ) + sum(d$x * log(B) ) - KL - const
+    ELBO = - sum( colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) + 
+						sum(d$x * log(B) ) - KL - const
 		ELBOs <- c(ELBOs, ELBO)
     ## verbose
     if(verbose){
@@ -139,17 +131,14 @@ init_ebpmf_bg <- function(X,K, init, d){
 	f0[f0 == 0] = 1e-10
 	l0 = apply(qg$qls_mean ,1, median)
 	l0[l0 == 0] = 1e-10
-	l0f0 = l0[d$i] * f0[d$j]
   ## TODO: speedup
-  B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1]) * l0f0
-  Lam = (l0 * qg$qls_mean[,1]) %o% (f0 * qg$qfs_mean[,1])
+  B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1]) 
   for(k in 2:K){
-    B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k]) * l0f0
-    Lam <- Lam + (l0 * qg$qls_mean[,k]) %o% (f0 * qg$qfs_mean[,k])
+    B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
   }
   runtime = proc.time() - start
   print(runtime)
-  return(list(l0 = l0, f0 = f0, qg = qg, B = B, Lam = Lam))
+  return(list(l0 = l0, f0 = f0, qg = qg, B = B))
 }
 
 compute_EZ_bg <- function(d, B, B_k){
@@ -157,7 +146,14 @@ compute_EZ_bg <- function(d, B, B_k){
   mask <- (B != 0)
   Ez.val[mask] = d$x[mask] * B_k[mask]/B[mask]
   Ez = sparseMatrix(i = d$i, j = d$j, x = Ez.val)
-  return(list(rs = rowSums(Ez), cs = colSums(Ez)))
+  return(list(rs = Matrix::rowSums(Ez), cs = Matrix::colSums(Ez)))
+}
+
+
+compute_kl_ebpm <- function(y,s, posterior, ll){
+  mask <- (y != 0)
+  E_loglik = - sum(s * posterior$mean) + sum(y[mask] * log(s[mask])) + sum(y[mask]*posterior$mean_log[mask])- sum(lgamma(y[mask] + 1))
+  return(E_loglik - ll)
 }
 
 #' @title Empirical Bayes Poisson Matrix Factorization (rank 1)
@@ -187,26 +183,26 @@ compute_EZ_bg <- function(d, B, B_k){
 
 ## TODO: uupdate KL, Lam
 rank1_bg <- function(d, X_rs, X_cs, l0, f0, pm_func,pm_control, init, fix_g){
+	browser()
   p = length(X_cs)
   n = length(X_rs)
   ## initialization (in fact, any non-negative number well do)
   sf = init$sf
   if(is.null(sf)){
-    sf = sum(NNLM::nnmf(A = X, k = 1, loss = "mkl", method = "lee", max.iter = 1, verbose = F)$W[,1])
+		sf = 1
   }
   ## fit for f, and compute kl_f
   fit_f = do.call(pm_func, c(list(x = X_cs, s = sf*f0, g_init = init$gf), pm_control))
-  kl_f = compute_kl(X_cs, sf*f0, fit_f)
+  kl_f = compute_kl_ebpm(y = X_cs, s = sf*f0, posterior = fit_f$posterior, ll = fit_f$log_likelihood)
   ## fit for l, and compute kl_l
   sl = sum(fit_f$posterior$mean)
   fit_l = do.call(pm_func, c(list(x = X_rs, s = sl*l0, g_init = init$gl), pm_control))
-  kl_l = compute_kl(X_rs, sl*l0, fit_l)
+  kl_l = compute_kl_ebpm(y = X_rs, s = sl*l0, posterior = fit_l$posterior, ll = fit_l$log_likelihood)
   ## list to return
   qg = list(ql = fit_l$posterior, gl = fit_l$fitted_g, qf = fit_f$posterior, gf = fit_f$fitted_g)
   out = list(qg = qg, kl_l = kl_l, kl_f = kl_f)
   return(out)
 }
-
 
 
 
