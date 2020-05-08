@@ -22,9 +22,9 @@ system.time(
   lf_init <- NNLM::nnmf(X, k = k, loss = "mkl", 
 												method = "scd", max.iter = maxiter)
 )
-# L0 = lf_init$W + 1e-10
-# F0 = t(lf_init$H) + 1e-10
-# qg0 = initialize_qg_from_LF(L0 = L0, F0 = F0)
+L0 = lf_init$W 
+F0 = t(lf_init$H) 
+qg0 = initialize_qg_from_LF(L0 = L0, F0 = F0)
 
 #browser()
 
@@ -32,6 +32,7 @@ system.time(
 system.time(
   fit_ebpmf <- ebpmf.alpha::ebpmf(X = X, K = k, 
 												pm_func = ebpm::ebpm_point_gamma,
+												init = list(qg = qg0),
 												maxiter = maxiter, verbose = verbose, 
 												fix_g = list(l = FALSE, f = FALSE))
 )

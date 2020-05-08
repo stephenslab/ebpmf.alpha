@@ -48,7 +48,9 @@ update_qg <- function(tmp, qg, k){
 initialize_qg_from_LF <- function(L0,F0){
   K = ncol(L0)
   qls_mean = L0
+  qls_mean[qls_mean == 0] = 1e-10
   qfs_mean = F0
+  qfs_mean[qfs_mean == 0] = 1e-10
   qls_mean_log = log(L0)
   qfs_mean_log = log(F0)
   qg = list(qls_mean = qls_mean, qls_mean_log = qls_mean_log,

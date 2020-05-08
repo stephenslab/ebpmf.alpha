@@ -93,23 +93,31 @@ ebpmf_bg <- function(X, K,
 
 
 ## use gammamix for `F`, and NULL for `L`
-initialize_qg_bg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
-  set.seed(seed)
-  nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, loss = "mkl", max.iter = init_iter, verbose = F, method = init_method)
-  qls_mean = nnmf_fit$W
+#' @export initialize_qg_bg_from_LF
+initialize_qg_bg_from_LF <- function(L0, F0){
+	K = ncol(L0) 
+	qls_mean = L0
   qls_mean[qls_mean == 0] = 1e-10
-  qfs_mean = t(nnmf_fit$H)
+  qfs_mean = F0
   qfs_mean[qfs_mean == 0] = 1e-10
   qls_mean_log = log(qls_mean)
   qfs_mean_log = log(qfs_mean)
-	#al = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
-	aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50)
-	D = length(aL)
-	gf = gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
+  #al = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
+  aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50)
+  D = length(aL)
+  gf = gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
   qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
             qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
             gls = rep(list(NULL), K),gfs = rep(list(gf), K))
   return(qg)
+}
+
+## use gammamix for `F`, and NULL for `L`
+initialize_qg_bg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
+  set.seed(seed)
+  nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, loss = "mkl", max.iter = init_iter, verbose = F, method = init_method)
+  qg = initialize_qg_bg_from_LF(L = nnmf_fit$W, F = t(nnmf_fit$H))
+	return(qg)
 }
 
 
