@@ -185,8 +185,8 @@ apply.nonzeros <- function (X, f) {
   return(sparseMatrix(i = d$i,j = d$j,x = f(d$x),dims = dim(X)))
 }
 
-
-
-
-
-
+compute_kl_ebpm <- function(y,s, posterior, ll){
+  mask <- (y != 0)
+  E_loglik = - sum(s * posterior$mean) + sum(y[mask] * log(s[mask])) + sum(y[mask]*posterior$mean_log[mask])- sum(lgamma(y[mask] + 1))
+  return(E_loglik - ll)
+}
