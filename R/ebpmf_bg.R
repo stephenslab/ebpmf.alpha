@@ -25,7 +25,7 @@
 #' @export  ebpmf_bg
 
 ebpmf_bg <- function(X, K, 
-									 pm_func = ebpm::ebpm_point_gamma,
+									 pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_pm),
                    init = list(qg = NULL, init_method = "scd", init_iter = 20), pm_control = NULL,
                    fix_g = list(l = FALSE, f = FALSE), maxiter = 100,
                    tol = 1e-8, verbose = FALSE){
@@ -68,8 +68,8 @@ ebpmf_bg <- function(X, K,
 		 #	B[B < 0] <- 1e-20 ## numerical issue gets - epsilon	
     }
 		## update l0, f0
-		denom <- colSums( t(qg$qls_mean) * colSums(f0 * qg$qfs_mean)) 
-		l0 <- X_rs/denom
+#		denom <- colSums( t(qg$qls_mean) * colSums(f0 * qg$qfs_mean)) 
+#		l0 <- X_rs/denom
 		denom <- colSums( t(qg$qfs_mean) * colSums(l0 * qg$qls_mean)) 
     f0 <- X_cs/denom
     ## compute ELBO
@@ -92,8 +92,7 @@ ebpmf_bg <- function(X, K,
 }
 
 
-
-
+## use gammamix for `F`, and NULL for `L`
 initialize_qg_bg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
   set.seed(seed)
   nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, loss = "mkl", max.iter = init_iter, verbose = F, method = init_method)
@@ -118,15 +117,9 @@ initialize_qg_bg <- function(X, K, init_method = "scd", init_iter = 20, seed = 1
 init_ebpmf_bg <- function(X,K, init, d){
   qg = init$qg
   if(is.null(qg)){
-    qg = initialize_qg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
+    qg = initialize_qg_bg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
   }
-	f0 = apply(qg$qfs_mean ,1, median)
-	f0[f0 == 0] = 1e-4
-	l0 = apply(qg$qls_mean ,1, median)
-	l0[l0 == 0] = 1e-4
-	
 	l0 = replicate(nrow(X), 1)
-#	f0 = replicate(ncol(X), 1)
 	denom <- colSums( t(qg$qfs_mean) * colSums(l0 * qg$qls_mean))
   f0 <- Matrix::colSums(X)/denom
   ## TODO: speedup
@@ -180,11 +173,11 @@ rank1_bg <- function(d, X_rs, X_cs, l0, f0, pm_func,pm_control, init, fix_g){
 		sf = 1
   }
   ## fit for f, and compute kl_f
-	fit_f = do.call(pm_func, c(list(x = X_cs, s = sf*f0, g_init = init$gf, fix_g = fix_g$f), pm_control))
+	fit_f = do.call(pm_func$f, c(list(x = X_cs, s = sf*f0, g_init = init$gf, fix_g = fix_g$f), pm_control))
   kl_f = compute_kl_ebpm(y = X_cs, s = sf*f0, posterior = fit_f$posterior, ll = fit_f$log_likelihood)
   ## fit for l, and compute kl_l
   sl = sum(fit_f$posterior$mean)
-  fit_l = do.call(pm_func, c(list(x = X_rs, s = sl*l0, g_init = init$gl, fix_g = fix_g$l), pm_control))
+  fit_l = do.call(pm_func$l, c(list(x = X_rs, s = sl*l0, g_init = init$gl, fix_g = fix_g$l), pm_control))
   kl_l = compute_kl_ebpm(y = X_rs, s = sl*l0, posterior = fit_l$posterior, ll = fit_l$log_likelihood)
   ## list to return
   qg = list(ql = fit_l$posterior, gl = fit_l$fitted_g, qf = fit_f$posterior, gf = fit_f$fitted_g)

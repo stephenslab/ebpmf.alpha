@@ -190,3 +190,19 @@ compute_kl_ebpm <- function(y,s, posterior, ll){
   E_loglik = - sum(s * posterior$mean) + sum(y[mask] * log(s[mask])) + sum(y[mask]*posterior$mean_log[mask])- sum(lgamma(y[mask] + 1))
   return(E_loglik - ll)
 }
+
+##########################################################
+mle_pm <- function(x, s, g_init, fix_g){
+	mask <- (x != 0)
+	mle <- replicate(length(x),0)
+	mle[mask] <- x/s
+	posterior <- list(mean = mle, mean_log = log(mle))
+	log_likelihood <- - sum(s * posterior$mean) + sum(x[mask] * log(s[mask])) + sum(x[mask]*posterior$mean_log[mask])- sum(lgamma(x[mask] + 1))
+	out = list(fitted_g = list(NULL), posterior = posterior, log_likelihood = log_likelihood)
+}
+
+
+
+
+
+
