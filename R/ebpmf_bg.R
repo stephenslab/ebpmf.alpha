@@ -36,9 +36,7 @@ ebpmf_bg <- function(X, K,
 	X_rs = Matrix::rowSums(X)
 	X_cs = Matrix::colSums(X)
   d = summary(X)
-  #const = sum(apply.nonzeros(X = X + 1, f = lgamma))
-  const = 0 ## TODO: use sum(lgamma(X + 1))
-
+	const = sum(apply.nonzeros(X = X, f = function(x) lgamma(x + 1)))
   ## initialization
   init_tmp <- init_ebpmf_bg(X = X, K = K, init = init, d = d)
   qg <- init_tmp$qg
@@ -49,7 +47,6 @@ ebpmf_bg <- function(X, K,
   ## update iteratively
   ELBOs <- c()
   for(i in 1:maxiter){
-		#print(i)
     KL <- 0
     for(k in 1:K){
 			## store B_k
@@ -70,12 +67,6 @@ ebpmf_bg <- function(X, K,
 			B = B - B_k + exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k])
 		 #	B[B < 0] <- 1e-20 ## numerical issue gets - epsilon	
     }
-
-		test = - sum( colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) +
-            sum(d$x * (log(l0[d$i]) + log(f0[d$j]) + log(B)) ) - KL - const
-
-		f0_ = f0
-
 		## update l0, f0
 		denom <- colSums( t(qg$qls_mean) * colSums(f0 * qg$qfs_mean)) 
 		l0 <- X_rs/denom
@@ -84,9 +75,6 @@ ebpmf_bg <- function(X, K,
     ## compute ELBO
     ELBO = - sum( colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) +
 						sum(d$x * (log(l0[d$i]) + log(f0[d$j]) + log(B)) ) - KL - const 	
-		if(test > ELBO){browser()}
-
-		#if(is.infinite(ELBO)){browser()}
 		ELBOs <- c(ELBOs, ELBO)
 		## verbose
     if(verbose){
@@ -128,7 +116,6 @@ initialize_qg_bg <- function(X, K, init_method = "scd", init_iter = 20, seed = 1
 
 ## output: qg, B
 init_ebpmf_bg <- function(X,K, init, d){
-  start = proc.time()
   qg = init$qg
   if(is.null(qg)){
     qg = initialize_qg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
@@ -147,8 +134,6 @@ init_ebpmf_bg <- function(X,K, init, d){
   for(k in 2:K){
     B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
   }
-  runtime = proc.time() - start
-  print(runtime)
   return(list(l0 = l0, f0 = f0, qg = qg, B = B))
 }
 
