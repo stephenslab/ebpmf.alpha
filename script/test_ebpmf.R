@@ -29,9 +29,8 @@ system.time(
 #browser()
 
 
-source("../R/ebpmf.R")
 system.time(
-  fit_ebpmf <- ebpmf(X = X, K = k, 
+  fit_ebpmf <- ebpmf.alpha::ebpmf(X = X, K = k, 
 												pm_func = ebpm::ebpm_point_gamma,
 												maxiter = maxiter, verbose = verbose, 
 												fix_g = list(l = FALSE, f = FALSE))
