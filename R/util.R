@@ -192,6 +192,7 @@ compute_kl_ebpm <- function(y,s, posterior, ll){
 }
 
 ##########################################################
+#' @export mle_pm
 mle_pm <- function(x, s, g_init, fix_g){
 	mask <- (x != 0)
 	mle <- replicate(length(x),0)
