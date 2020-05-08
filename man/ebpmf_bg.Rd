@@ -12,8 +12,9 @@ ebpmf_bg(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_pm),
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}
 
-\item{pm_func}{function for solving the \code{ebpm} subproblem; can be
-\code{ebpm_point_gamma, ebpm_two_gamma, ebpm_exponential_mixture, ebpm_gamma_mixture_single_scale}}
+\item{pm_func}{functions for solving the \code{ebpm} subproblem for \code{L} and \code{F}; 
+It is a list \code{list(l, f)};
+For our purpose we use `mle_pm` or `ebpm_point_gammma`for \code{L}, and \code{ebpm_gamma_mixture} for \code{F}}
 
 \item{init}{list(qg, init_method, init_iter)}
 

@@ -4,8 +4,9 @@
 
 #' @param X count matrix (dim(X) = c(n, p)).
 #' @param k number of topics
-#' @param pm_func function for solving the \code{ebpm} subproblem; can be
-#' \code{ebpm_point_gamma, ebpm_two_gamma, ebpm_exponential_mixture, ebpm_gamma_mixture_single_scale}
+#' @param pm_func functions for solving the \code{ebpm} subproblem for \code{L} and \code{F}; 
+#' It is a list \code{list(l, f)};
+#' For our purpose we use `mle_pm` or `ebpm_point_gammma`for \code{L}, and \code{ebpm_gamma_mixture} for \code{F}
 #' @param pm_control control parameters for pm_func function
 #' @param init list(qg, init_method, init_iter)
 #' @param fix_g list(l, f) where l, f are either TRUE or FALSE
@@ -24,11 +25,9 @@
 #' To add
 #' @export  ebpmf_bg
 
-ebpmf_bg <- function(X, K, 
-									 pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_pm),
-                   init = list(qg = NULL, init_method = "scd", init_iter = 20), pm_control = NULL,
-                   fix_g = list(l = FALSE, f = FALSE), maxiter = 100,
-                   tol = 1e-8, verbose = FALSE){
+ebpmf_bg <- function(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_pm),
+										 init = list(qg = NULL, init_method = "scd", init_iter = 20), pm_control = NULL,
+										 fix_g = list(l = FALSE, f = FALSE), maxiter = 100, tol = 1e-8, verbose = FALSE){
 	## TODO: input check, require X_rs, X_cs to be nonzero
 
   ## transform to sparse matrix 
