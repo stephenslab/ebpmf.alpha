@@ -53,7 +53,7 @@ ebpmf_bg <- function(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_
     	## compute q(Z)
       Ez <- compute_EZ_bg(d = d,B = B,B_k = B_k)
       ## update (qL, gL, qF, gF) 
-      init_r1 = list(sf = sum(qg$qls_mean[,k]),
+      init_r1 = list(sf = sum(l0 * qg$qls_mean[,k]),
                      gl = qg$gls[[k]], gf = qg$gfs[[k]])
       rank1_tmp <- rank1_bg(d = d, X_rs = Ez$rs, X_cs = Ez$cs,
 														l0 = l0, f0 = f0, pm_func = pm_func, pm_control = pm_control,
@@ -183,7 +183,7 @@ rank1_bg <- function(d, X_rs, X_cs, l0, f0, pm_func,pm_control, init, fix_g){
 	fit_f = do.call(pm_func$f, c(list(x = X_cs, s = sf*f0, g_init = init$gf, fix_g = fix_g$f), pm_control))
   kl_f = compute_kl_ebpm(y = X_cs, s = sf*f0, posterior = fit_f$posterior, ll = fit_f$log_likelihood)
   ## fit for l, and compute kl_l
-  sl = sum(fit_f$posterior$mean)
+  sl = sum(f0 * fit_f$posterior$mean)
   fit_l = do.call(pm_func$l, c(list(x = X_rs, s = sl*l0, g_init = init$gl, fix_g = fix_g$l), pm_control))
   kl_l = compute_kl_ebpm(y = X_rs, s = sl*l0, posterior = fit_l$posterior, ll = fit_l$log_likelihood)
   ## list to return
