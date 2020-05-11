@@ -2,8 +2,6 @@
 
 export(ebpmf)
 export(ebpmf_bg)
-export(get_Ez)
-export(initialize_qg_bg_from_LF)
 export(initialize_qg_from_LF)
 export(mle_pm)
 export(rank1)

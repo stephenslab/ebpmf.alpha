@@ -5,8 +5,7 @@
 \title{Empirical Bayes Poisson Matrix Factorization (Background Model)}
 \usage{
 ebpmf_bg(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_pm),
-  init = list(qg = NULL, init_method = "scd", init_iter = 20),
-  pm_control = NULL, fix_g = list(l = FALSE, f = FALSE),
+  init = NULL, pm_control = NULL, fix_g = list(l = FALSE, f = FALSE),
   maxiter = 100, tol = 1e-08, verbose = FALSE)
 }
 \arguments{
@@ -16,7 +15,7 @@ ebpmf_bg(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_pm),
 It is a list \code{list(l, f)};
 For our purpose we use `mle_pm` or `ebpm_point_gammma`for \code{L}, and \code{ebpm_gamma_mixture} for \code{F}}
 
-\item{init}{list(qg, init_method, init_iter)}
+\item{init}{Either \code{NULL} or \code{list(qg, l0, f0)}}
 
 \item{pm_control}{control parameters for pm_func function}
 

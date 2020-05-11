@@ -2,21 +2,12 @@
 ## Functions updating in ebpmf
 ## ================================================================================================================
 
-## compute the row & col sum of <Z_ijk> for a given k
-#' @export get_Ez
-get_Ez <- function(X, qg,K, threshold = NULL){
-  n = nrow(X)
-  p = ncol(X)
-  zeta = array(dim = c(n, p, K))
-  ## get <ln l_ik> + <ln f_jk>
-  for(d in 1:K){
-    zeta[,,d] = outer(qg$qls_mean_log[,d], qg$qfs_mean_log[,d], "+") ##  this can be -Inf
-  }
-  ## do softmax
-  zeta = softmax3d(zeta, threshold)
-  Ez = as.vector(zeta)*as.vector(X)
-  dim(Ez) = dim(zeta)
-  return(list(Ez = Ez, zeta = zeta))
+compute_EZ <- function(d, B, B_k){
+  Ez.val = replicate(length(d$i), 0)
+  mask <- (B != 0)
+  Ez.val[mask] = d$x[mask] * B_k[mask]/B[mask]
+  Ez = sparseMatrix(i = d$i, j = d$j, x = Ez.val)
+  return(list(rs = Matrix::rowSums(Ez), cs = Matrix::colSums(Ez)))
 }
 
 update_qg <- function(tmp, qg, k){
@@ -29,20 +20,11 @@ update_qg <- function(tmp, qg, k){
   return(qg)
 }
 
-# ## TESTING
-# ## only update
-# update_qg_fixl <- function(tmp, qg, k, iter){
-#   qg$qfs_mean[,k] = tmp$qf$mean
-#   qg$qfs_mean_log[,k] = tmp$qf$mean_log
-#   if(iter == 1){
-#     qg$qls_mean[,k] = tmp$ql$mean
-#     qg$qls_mean_log[,k] = tmp$ql$mean_log
-#     qg$gls[[k]] = tmp$gl
-#   }
-#   #qg$gls[[k]] = tmp$gl
-#   qg$gfs[[k]] = tmp$gf
-#   return(qg)
-# }
+
+
+## ================================================================================================================
+## Functions for initialization
+## ================================================================================================================
 
 #' @export initialize_qg_from_LF
 initialize_qg_from_LF <- function(L0,F0){
@@ -61,139 +43,69 @@ initialize_qg_from_LF <- function(L0,F0){
 
 initialize_qg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
   set.seed(seed)
-  nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, loss = "mkl", max.iter = init_iter, verbose = F, method = init_method)
-  qls_mean = nnmf_fit$W
-  qls_mean[qls_mean == 0] = 1e-10
-  qfs_mean = t(nnmf_fit$H)
-  qfs_mean[qfs_mean == 0] = 1e-10
-  qls_mean_log = log(qls_mean)
-  qfs_mean_log = log(qfs_mean)
-  qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
-            qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
-            gls = replicate(K, list(NULL)),gfs = replicate(K, list(NULL)))
+  nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, loss = "mkl", max.iter = init_iter, verbose = FALSE, method = init_method)
+	qg = initialize_qg_from_LF(L0 = nnmf_fit$W, F0 = t(nnmf_fit$H))
   return(qg)
 }
 
-## x is 3d array, and can contain -Inf
-softmax3d <- function(x, threshold = NULL){
-  score.exp <- exp(x)
-  probs <-as.vector(score.exp)/as.vector(rowSums(score.exp,dims=2))
-  if(!is.null(threshold)){
-    dim(probs) <- dim(x)
-    probs[probs < threshold] = 0
-    probs <-as.vector(probs)/as.vector(rowSums(probs,dims=2))
+
+## initialization for `ebpmf`
+init_ebpmf <- function(X,K, init, d){
+  qg = init$qg
+  if(is.null(qg)){
+    qg = initialize_qg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
   }
-  probs[is.na(probs)] = 0 ##  since softmax((0,0,...,0)) = (NA, NA,...,NA), I manually set them to be 0. But it is not safe!!!
-  dim(probs) <- dim(x)
-  return(probs)
+  ## TODO: speedup
+  B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1])
+  for(k in 2:K){
+    B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
+  }
+  return(list(qg = qg, B = B))
 }
 
-compute_rmse <- function(lam1, lam2){
-  return(sqrt(mean((lam1 - lam2)^2)))
-}
-
-## ================================================================================================================
-## Functions for random effect
-## ================================================================================================================
-
-
-initialize_qg_random_effect <- function(X, K, init_method = "scd", seed = 123){
-  nnmf_fit = NNLM::nnmf(A = X, k = K+1, loss = "mkl", max.iter = 20, verbose = F, method = init_method)
-  qls_mean = nnmf_fit$W[,1:K]
-  qfs_mean = t(nnmf_fit$H)[,1:K]
-  qmu_mean = outer(nnmf_fit$W[,K+1],nnmf_fit$H[K+1,], "*")
-  qls_mean_log = log(qls_mean)
-  qfs_mean_log = log(qfs_mean)
-  qmu_mean_log = log(qmu_mean)
-  qg = list(qls_mean = qls_mean, qls_mean_log = qls_mean_log,
-            qfs_mean = qfs_mean, qfs_mean_log = qfs_mean_log,
-            qmu_mean = qmu_mean, qmu_mean_log = qmu_mean_log,
-            gls = replicate(K, list(NULL)),gfs = replicate(K, list(NULL)),
-            gmu = list(NULL))
-  return(qg)
-}
-
-
-## compute the row & col sum of <Z_ijk> for a given k
-get_Ez_random_effect <- function(X, qg,K){
+## output: qg, B
+## init either NULL, or list(qg, l0, f0)
+init_ebpmf_bg <- function(X,K, init, d){
   n = nrow(X)
-  p = ncol(X)
-  zeta = array(dim = c(n, p, K+1))
-  ## get <ln l_ik> + <ln f_jk>
-  for(d in 1:K){
-    zeta[,,d] = outer(qg$qls_mean_log[,d], qg$qfs_mean_log[,d], "+") ##  this can be -Inf
+	p = ncol(X)
+  if(is.null(init)){
+		nmf_r1 <- NNLM::nnmf(A = as.matrix(X), k = 1, loss = "mkl", max.iter = 1, verbose = FALSE, method = "lee")
+ 		l0 = as.vector(nmf_r1$W)
+		f0 = as.vector(nmf_r1$H)
+		L0 = matrix(replicate(n*K, 1), ncol = K)	
+		F0 = matrix(replicate(p*K, 1), ncol = K)	
+		qg = initialize_qg_from_LF(L0, F0)
+		## TODO make this part as input to `ebpmf_bg`
+		aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
+		D = length(aL)
+  	g = gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
+ 		qg$gls = replicate(K, list(g))	
+ 		qg$gfs = replicate(K, list(g))	
+	}
+  ## TODO: speedup
+  B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1])
+  for(k in 2:K){
+    B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
   }
-  zeta[,,K+1] = qg$qmu_mean_log
-  ## do softmax
-  zeta = softmax3d(zeta)
-  Ez = as.vector(zeta)*as.vector(X)
-  dim(Ez) = dim(zeta)
-  return(list(Ez = Ez, zeta = zeta))
+  return(list(l0 = l0, f0 = f0, qg = qg, B = B))
 }
-
-update_qg_random_effect <- function(tmp, qg){
-  qg$qmu_mean = tmp$qmu_mean
-  qg$qmu_mean_log = tmp$qmu_mean_log
-  qg$gmu = tmp$gmu
-  return(qg)
-}
-
-compute_ll_random_effect <- function(X, qg){
-  tmp = X * log(rowSums(exp(operate_lf(qg$qls_mean_log, qg$qfs_mean_log, "+")), dims = 2) + exp(qg$qmu_mean_log))
-  tmp[X ==  0] =  0
-  out = - sum(operate_lf(qg$qls_mean, qg$qfs_mean, "*")) - sum(qg$qmu_mean) + sum(tmp)
-  return(out)
-}
-
-
 
 ## ================================================================================================================
 ## Functions for computing ELBO
 ## ================================================================================================================
 
-## compute KL(q || p) = Eq(log(q(lambda)/p(lambda))) from ebpm fitted result
-compute_kl <- function(x, s, fit_pm){
-  #browser()
-  ## -KL = fit_pm$log_likelihood - sum(tmp) + sum(lgamma(x + 1))
-  ## tmp =  - s * fit_pm$posterior$mean  +  x * (log(s) + fit_pm$posterior$mean_log)
-  tmp = x * (log(s) + fit_pm$posterior$mean_log)
-  tmp[x == 0] = 0
-  tmp = tmp - s * fit_pm$posterior$mean
-  out = fit_pm$log_likelihood - sum(tmp) + sum(lgamma(x + 1))
-  return(-out)
-}
-
-compute_ll <- function(X, qg){
-  tmp = X * log(rowSums(exp(operate_lf(qg$qls_mean_log, qg$qfs_mean_log, "+")), dims = 2))
-  tmp[X ==  0] =  0
-  out = - sum(operate_lf(qg$qls_mean, qg$qfs_mean, "*")) + sum(tmp)
-  return(out)
-}
-
-
-## this is too slow
-operate_lf <- function(L, F, operation){
-  K = ncol(L)
-  out = array(dim = c(nrow(L), nrow(F), K))
-  for(k in 1:K){
-    out[,,k] = outer(L[,k], F[,k], operation)
-  }
-  return(out)
-}
-
-# Apply operation f to all nonzeros of a sparse matrix.
-apply.nonzeros <- function (X, f) {
-  d <- summary(X)
-  return(sparseMatrix(i = d$i,j = d$j,x = f(d$x),dims = dim(X)))
-}
-
+## compute KL divergence between prior and posterior from `ebpm` outputs
 compute_kl_ebpm <- function(y,s, posterior, ll){
   mask <- (y != 0)
   E_loglik = - sum(s * posterior$mean) + sum(y[mask] * log(s[mask])) + sum(y[mask]*posterior$mean_log[mask])- sum(lgamma(y[mask] + 1))
   return(E_loglik - ll)
 }
 
-##########################################################
+
+## ================================================================================================================
+## MLE for Poisson Means, with the same format as `ebpm`
+## ================================================================================================================
+
 #' @export mle_pm
 mle_pm <- function(x, s, g_init, fix_g){
 	mask <- (x != 0)
@@ -206,7 +118,17 @@ mle_pm <- function(x, s, g_init, fix_g){
 }
 
 
+## ================================================================================================================
+## Other Functions
+## ================================================================================================================
+
+compute_rmse <- function(lam1, lam2){
+  return(sqrt(mean((lam1 - lam2)^2)))
+}
 
 
-
-
+# Apply operation f to all nonzeros of a sparse matrix.
+apply.nonzeros <- function (X, f) {
+  d <- summary(X)
+  return(sparseMatrix(i = d$i,j = d$j,x = f(d$x),dims = dim(X)))
+}

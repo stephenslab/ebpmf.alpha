@@ -8,7 +8,7 @@
 #' It is a list \code{list(l, f)};
 #' For our purpose we use `mle_pm` or `ebpm_point_gammma`for \code{L}, and \code{ebpm_gamma_mixture} for \code{F}
 #' @param pm_control control parameters for pm_func function
-#' @param init list(qg, init_method, init_iter)
+#' @param init Either \code{NULL} or \code{list(qg, l0, f0)}
 #' @param fix_g list(l, f) where l, f are either TRUE or FALSE
 #' @param maxiter maximum number of iterations
 #' @param tol stopping tolerance for ELBO
@@ -26,7 +26,7 @@
 #' @export  ebpmf_bg
 
 ebpmf_bg <- function(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_pm),
-										 init = list(qg = NULL, init_method = "scd", init_iter = 20), pm_control = NULL,
+										 init = NULL, pm_control = NULL,
 										 fix_g = list(l = FALSE, f = FALSE), maxiter = 100, tol = 1e-8, verbose = FALSE){
 	## TODO: input check, require X_rs, X_cs to be nonzero
 
@@ -37,7 +37,7 @@ ebpmf_bg <- function(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_
   d = summary(X)
 	const = sum(apply.nonzeros(X = X, f = function(x) lgamma(x + 1)))
   ## initialization
-  init_tmp <- init_ebpmf_bg(X = X, K = K, init = init, d = d)
+	init_tmp <- init_ebpmf_bg(X = X, K = K, init = init, d = d)
   qg <- init_tmp$qg
   B <- init_tmp$B
 	l0 <- init_tmp$l0
@@ -51,7 +51,7 @@ ebpmf_bg <- function(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_
 			## store B_k
  			B_k = exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k]) 
     	## compute q(Z)
-      Ez <- compute_EZ_bg(d = d,B = B,B_k = B_k)
+      Ez <- compute_EZ(d = d,B = B,B_k = B_k)
       ## update (qL, gL, qF, gF) 
       init_r1 = list(sf = sum(l0 * qg$qls_mean[,k]),
                      gl = qg$gls[[k]], gf = qg$gfs[[k]])
@@ -67,8 +67,8 @@ ebpmf_bg <- function(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_
 		 #	B[B < 0] <- 1e-20 ## numerical issue gets - epsilon	
     }
 		## update l0, f0
-#		denom <- colSums( t(qg$qls_mean) * colSums(f0 * qg$qfs_mean)) 
-#		l0 <- X_rs/denom
+		denom <- colSums( t(qg$qls_mean) * colSums(f0 * qg$qfs_mean)) 
+		l0 <- X_rs/denom
 		denom <- colSums( t(qg$qfs_mean) * colSums(l0 * qg$qls_mean)) 
     f0 <- X_cs/denom
     ## compute ELBO
@@ -91,59 +91,51 @@ ebpmf_bg <- function(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_
 }
 
 
-## use gammamix for `F`, and NULL for `L`
-#' @export initialize_qg_bg_from_LF
-initialize_qg_bg_from_LF <- function(L0, F0){
-	K = ncol(L0) 
-	qls_mean = L0
-  qls_mean[qls_mean == 0] = 1e-10
-  qfs_mean = F0
-  qfs_mean[qfs_mean == 0] = 1e-10
-  qls_mean_log = log(qls_mean)
-  qfs_mean_log = log(qfs_mean)
-  #al = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
-  aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50)
-  D = length(aL)
-  gf = gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
-  qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
-            qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
-            gls = rep(list(NULL), K),gfs = rep(list(gf), K))
-  return(qg)
-}
-
-## use gammamix for `F`, and NULL for `L`
-initialize_qg_bg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
-  set.seed(seed)
-  nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, loss = "mkl", max.iter = init_iter, verbose = F, method = init_method)
-  qg = initialize_qg_bg_from_LF(L = nnmf_fit$W, F = t(nnmf_fit$H))
-	return(qg)
-}
-
-
-## output: qg, B
-init_ebpmf_bg <- function(X,K, init, d){
-  qg = init$qg
-  if(is.null(qg)){
-    qg = initialize_qg_bg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
-  }
-	l0 = replicate(nrow(X), 1)
-	denom <- colSums( t(qg$qfs_mean) * colSums(l0 * qg$qls_mean))
-  f0 <- Matrix::colSums(X)/denom
-  ## TODO: speedup
-  B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1]) 
-  for(k in 2:K){
-    B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
-  }
-  return(list(l0 = l0, f0 = f0, qg = qg, B = B))
-}
-
-compute_EZ_bg <- function(d, B, B_k){
-  Ez.val = replicate(length(d$i), 0)
-  mask <- (B != 0)
-  Ez.val[mask] = d$x[mask] * B_k[mask]/B[mask]
-  Ez = sparseMatrix(i = d$i, j = d$j, x = Ez.val)
-  return(list(rs = Matrix::rowSums(Ez), cs = Matrix::colSums(Ez)))
-}
+### use gammamix for `F`, and NULL for `L`
+#initialize_qg_bg_from_LF <- function(L0, F0){
+#	K = ncol(L0) 
+#	qls_mean = L0
+#  qls_mean[qls_mean == 0] = 1e-10
+#  qfs_mean = F0
+#  qfs_mean[qfs_mean == 0] = 1e-10
+#  qls_mean_log = log(qls_mean)
+#  qfs_mean_log = log(qfs_mean)
+#  #al = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
+#  aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50)
+#  D = length(aL)
+#  gf = gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
+#  qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
+#            qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
+#            gls = rep(list(NULL), K),gfs = rep(list(gf), K))
+#  return(qg)
+#}
+#
+### use gammamix for `F`, and NULL for `L`
+#initialize_qg_bg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
+#  set.seed(seed)
+#  nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, loss = "mkl", max.iter = init_iter, verbose = F, method = init_method)
+#  qg = initialize_qg_bg_from_LF(L = nnmf_fit$W, F = t(nnmf_fit$H))
+#	return(qg)
+#}
+#
+#
+### output: qg, B
+#init_ebpmf_bg <- function(X,K, init, d){
+#  qg = init$qg
+#  if(is.null(qg)){
+#    qg = initialize_qg_bg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
+#  }
+#	l0 = replicate(nrow(X), 1)
+#	denom <- colSums( t(qg$qfs_mean) * colSums(l0 * qg$qls_mean))
+#  f0 <- Matrix::colSums(X)/denom
+#  ## TODO: speedup
+#  B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1]) 
+#  for(k in 2:K){
+#    B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
+#  }
+#  return(list(l0 = l0, f0 = f0, qg = qg, B = B))
+#}
+#
 
 #' @title Empirical Bayes Poisson Matrix Factorization (rank 1)
 #' @import ebpm

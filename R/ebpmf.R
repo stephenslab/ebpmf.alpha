@@ -98,16 +98,6 @@ init_ebpmf <- function(X,K, init, d){
   return(list(qg = qg, B = B))
 }
 
-
-compute_EZ <- function(d, B, B_k){
-  Ez.val = replicate(length(d$i), 0)
-  mask <- (B != 0)
-  Ez.val[mask] = d$x[mask] * B_k[mask]/B[mask]
-  Ez = sparseMatrix(i = d$i, j = d$j, x = Ez.val)
-  return(list(rs = Matrix::rowSums(Ez), cs = Matrix::colSums(Ez)))
-}
-
-
 #' @title Empirical Bayes Poisson Matrix Factorization (rank 1)
 #' @import ebpm
 

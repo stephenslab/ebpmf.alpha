@@ -1,7 +1,7 @@
 Package: ebpmf.alpha
 Type: Package
 Title: What the Package Does (Title Case)
-Version: 0.3.6
+Version: 0.3.8
 Author: Zihao Wang
 Maintainer: The package maintainer <yourself@somewhere.net>
 Description: More about what it does (maybe more than one line)
