@@ -4,7 +4,7 @@ library(Matrix)
 library(ebpmf.alpha)
 # test code for ebpmf
 set.seed(123)
-maxiter = 100
+maxiter = 20
 verbose = TRUE
 k = 10
 n = 500; p = 100
@@ -14,19 +14,20 @@ f = matrix(rgamma(p*k, shape = a, rate = b), ncol = k)
 lam = l %*% t(f)
 X = matrix(rpois(n*p, lam), nrow = n)
 
-library(NNLM)
-system.time(
-  lf_init <- NNLM::nnmf(X, k = k, loss = "mkl", 
-												method = "scd", max.iter = maxiter)
-)
-L0 = lf_init$W 
-F0 = t(lf_init$H)
-qg0 = ebpmf.alpha::initialize_qg_bg_from_LF(L0 = L0, F0 = F0)
+#library(NNLM)
+#system.time(
+#  lf_init <- NNLM::nnmf(X, k = k, loss = "mkl", 
+#												method = "scd", max.iter = maxiter)
+#)
+#L0 = lf_init$W 
+#F0 = t(lf_init$H)
+#qg0 = ebpmf.alpha::initialize_qg_bg_from_LF(L0 = L0, F0 = F0)
+#
 
 system.time(
   fit_ebpmf <- ebpmf.alpha::ebpmf_bg(X = X, K = k, 
-												pm_func = list(f = ebpm::ebpm_gamma_mixture, l = ebpm::ebpm_point_gamma),
-												init = list(qg = qg0),
+												pm_func = list(f = ebpm::ebpm_gamma_mixture, l = ebpm::ebpm_gamma_mixture),
+												init = NULL,
 												maxiter = maxiter, verbose = verbose, 
 												fix_g = list(l = FALSE, f = FALSE))
 )
