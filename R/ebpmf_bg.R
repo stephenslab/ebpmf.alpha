@@ -18,16 +18,19 @@
 #'     \describe{
 #'       \item{\code{l0}}{sample-wise mean}
 #'       \item{\code{f0}}{feature-wise mean}
-#'       \item{\code{qg}}{approximate posterior for l}
+#'       \item{\code{qg}}{list(ql, gl,qf, gf)}
 #'       \item{\code{ELBO}}{ELBO objective for this VEB algorithm}
 #'      }
 #' @examples
 #' To add
 #' @export  ebpmf_bg
 
-ebpmf_bg <- function(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_pm),
+ebpmf_bg <- function(X, K, 
+										 pm_func = list(f = ebpm::ebpm_gamma_mixture, 
+																		l = ebpm::ebpm_gamma_mixture),
 										 init = NULL, pm_control = NULL,
-										 fix_g = list(l = FALSE, f = FALSE), maxiter = 100, tol = 1e-8, verbose = FALSE){
+										 fix_g = list(l = FALSE, f = FALSE), 
+										 maxiter = 100, tol = 1e-8, verbose = FALSE){
 	## TODO: input check, require X_rs, X_cs to be nonzero
 
   ## transform to sparse matrix 
@@ -56,7 +59,8 @@ ebpmf_bg <- function(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_
       init_r1 = list(sf = sum(l0 * qg$qls_mean[,k]),
                      gl = qg$gls[[k]], gf = qg$gfs[[k]])
       rank1_tmp <- rank1_bg(d = d, X_rs = Ez$rs, X_cs = Ez$cs,
-														l0 = l0, f0 = f0, pm_func = pm_func, pm_control = pm_control,
+														l0 = l0, f0 = f0, 
+														pm_func = pm_func, pm_control = pm_control,
 														init = init_r1, fix_g = fix_g)
       rm(Ez)
       KL = KL + rank1_tmp$kl_l + rank1_tmp$kl_f
@@ -91,53 +95,8 @@ ebpmf_bg <- function(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_
 }
 
 
-### use gammamix for `F`, and NULL for `L`
-#initialize_qg_bg_from_LF <- function(L0, F0){
-#	K = ncol(L0) 
-#	qls_mean = L0
-#  qls_mean[qls_mean == 0] = 1e-10
-#  qfs_mean = F0
-#  qfs_mean[qfs_mean == 0] = 1e-10
-#  qls_mean_log = log(qls_mean)
-#  qfs_mean_log = log(qfs_mean)
-#  #al = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
-#  aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50)
-#  D = length(aL)
-#  gf = gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
-#  qg = list(qls_mean = qls_mean, qls_mean_log =qls_mean_log,
-#            qfs_mean = qfs_mean, qfs_mean_log =qfs_mean_log,
-#            gls = rep(list(NULL), K),gfs = rep(list(gf), K))
-#  return(qg)
-#}
-#
-### use gammamix for `F`, and NULL for `L`
-#initialize_qg_bg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
-#  set.seed(seed)
-#  nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, loss = "mkl", max.iter = init_iter, verbose = F, method = init_method)
-#  qg = initialize_qg_bg_from_LF(L = nnmf_fit$W, F = t(nnmf_fit$H))
-#	return(qg)
-#}
-#
-#
-### output: qg, B
-#init_ebpmf_bg <- function(X,K, init, d){
-#  qg = init$qg
-#  if(is.null(qg)){
-#    qg = initialize_qg_bg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
-#  }
-#	l0 = replicate(nrow(X), 1)
-#	denom <- colSums( t(qg$qfs_mean) * colSums(l0 * qg$qls_mean))
-#  f0 <- Matrix::colSums(X)/denom
-#  ## TODO: speedup
-#  B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1]) 
-#  for(k in 2:K){
-#    B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
-#  }
-#  return(list(l0 = l0, f0 = f0, qg = qg, B = B))
-#}
-#
 
-#' @title Empirical Bayes Poisson Matrix Factorization (rank 1)
+#' @title Empirical Bayes Poisson Matrix Factorization, Background Model (rank 1)
 #' @import ebpm
 
 #' @param d: summary(X), so it has `i`, `j` and `x` as attributes
