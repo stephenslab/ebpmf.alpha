@@ -96,12 +96,13 @@ init_ebpmf_bg <- function(X,K, init, d, seed = 123){
   n = nrow(X)
 	p = ncol(X)
   if(is.null(init)){
-		init_tmp = initialize_qg_l0f0(X = X, K = K, seed = seed)
-		qg = init_tmp$qg
-		l0 = init_tmp$l0
-		f0 = init_tmp$f0
+		init = initialize_qg_l0f0(X = X, K = K, seed = seed)
 	}
-  ## TODO: speedup
+  qg = init$qg
+  l0 = init$l0
+  f0 = init$f0
+	rm(init)
+	## TODO: speedup
   B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1])
   for(k in 2:K){
     B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
