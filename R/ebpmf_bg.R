@@ -12,7 +12,7 @@
 #' @param fix_g list(l, f) where l, f are either TRUE or FALSE
 #' @param maxiter maximum number of iterations
 #' @param tol stopping tolerance for ELBO
-#' @param verbose print progress if set TRUE
+#' @param seed used when init is NULL
 #'
 #' @return A list containing elements:
 #'     \describe{
@@ -29,11 +29,11 @@ ebpmf_bg <- function(X, K,
 										 pm_func = list(f = ebpm::ebpm_gamma_mixture, 
 																		l = ebpm::ebpm_gamma_mixture),
 										 init = NULL, pm_control = NULL,
-										 #fix_g = list(l = FALSE, f = FALSE), 
 										 fix_option = list(l0 = FALSE, f0 = FALSE,
 																				gl = FALSE, ql = FALSE,
 																				gf = FALSE, qf = FALSE), 
-										 maxiter = 100, tol = 1e-8, verbose = FALSE){
+										 maxiter = 100, tol = 1e-8, 
+										 verbose = FALSE, seed = 123){
 	## TODO: input check, require X_rs, X_cs to be nonzero
 
   ## transform to sparse matrix 
@@ -43,7 +43,7 @@ ebpmf_bg <- function(X, K,
   d = summary(X)
 	const = sum(apply.nonzeros(X = X, f = function(x) lgamma(x + 1)))
   ## initialization
-	init_tmp <- init_ebpmf_bg(X = X, K = K, init = init, d = d)
+	init_tmp <- init_ebpmf_bg(X = X, K = K, init = init, d = d, seed = seed)
   qg <- init_tmp$qg
   B <- init_tmp$B
 	l0 <- init_tmp$l0

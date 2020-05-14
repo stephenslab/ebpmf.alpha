@@ -74,7 +74,7 @@ ebpmf <- function(X, K,pm_func = ebpm::ebpm_point_gamma,
     ## verbose
     if(verbose){
       print("iter         ELBO")
-      print(sprintf("%d:    %f", i, KL))
+      print(sprintf("%d:    %f", i, ELBO))
     }
     ## check convergence
     # diff = ifelse(i > 2, ELBOs[i] - ELBOs[i-1], Inf)

@@ -70,27 +70,35 @@ init_ebpmf <- function(X,K, init, d){
   return(list(qg = qg, B = B))
 }
 
+initialize_qg_l0f0 <- function(X, K, seed = 123){
+	set.seed(seed)
+	n = nrow(X)
+	p = ncol(X)
+	L0 = matrix(exp(runif(n*K, min = -1.5, max = 1)), ncol = K)
+  F0 = matrix(exp(runif(p*K, min = -1.5, max = 1)), ncol = K)
+  qg = initialize_qg_from_LF(L0, F0)
+  l0 = rowSums(X)
+  denom <- colSums( t(qg$qfs_mean) * colSums(l0 * qg$qls_mean))
+  f0 <- colSums(X)/denom
+	## initialize g
+	aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
+  D = length(aL)
+  g = gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
+  qg$gls = replicate(K, list(g))
+  qg$gfs = replicate(K, list(g))
+	return(list(qg = qg, l0 = l0, f0 = f0))
+}
+
 ## output: qg, B
 ## init either NULL, or list(qg, l0, f0)
-init_ebpmf_bg <- function(X,K, init, d){
+init_ebpmf_bg <- function(X,K, init, d, seed = 123){
   n = nrow(X)
 	p = ncol(X)
   if(is.null(init)){
-		nmf_r1 <- NNLM::nnmf(A = as.matrix(X), k = 1, 
-												 loss = "mkl", method = "lee",
-												 max.iter = 1, verbose = FALSE,
-												 show.warning = FALSE)
- 		l0 = as.vector(nmf_r1$W)
-		f0 = as.vector(nmf_r1$H)/K
-		L0 = matrix(replicate(n*K, 1), ncol = K)	
-		F0 = matrix(replicate(p*K, 1), ncol = K)	
-		qg = initialize_qg_from_LF(L0, F0)
-		## TODO make this part as input to `ebpmf_bg`
-		aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
-		D = length(aL)
-  	g = gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
- 		qg$gls = replicate(K, list(g))	
- 		qg$gfs = replicate(K, list(g))	
+		init_tmp = initialize_qg_l0f0(X = X, K = K, seed = seed)
+		qg = init_tmp$qg
+		l0 = init_tmp$l0
+		f0 = init_tmp$f0
 	}
   ## TODO: speedup
   B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1])
