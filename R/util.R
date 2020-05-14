@@ -15,8 +15,10 @@ update_qg <- function(tmp, qg, k){
   qg$qls_mean_log[,k] = tmp$ql$mean_log
   qg$qfs_mean[,k] = tmp$qf$mean
   qg$qfs_mean_log[,k] = tmp$qf$mean_log
-  qg$gls[[k]] = tmp$gl
-  qg$gfs[[k]] = tmp$gf
+  qg$gls[k] = list(tmp$gl)
+  qg$gfs[k] = list(tmp$gf)
+	qg$kl_l[k] = tmp$kl_l
+	qg$kl_f[k] = tmp$kl_f
   return(qg)
 }
 
@@ -35,15 +37,20 @@ initialize_qg_from_LF <- function(L0,F0){
   qfs_mean[qfs_mean == 0] = 1e-10
   qls_mean_log = log(L0)
   qfs_mean_log = log(F0)
-  qg = list(qls_mean = qls_mean, qls_mean_log = qls_mean_log,
-            qfs_mean = qfs_mean, qfs_mean_log = qfs_mean_log,
+	kl_l = replicate(K, 0)
+	kl_f = replicate(K, 0)
+  qg = list(qls_mean = qls_mean, qls_mean_log = qls_mean_log, kl_l = kl_l,
+            qfs_mean = qfs_mean, qfs_mean_log = qfs_mean_log,	kl_f = kl_f, 
             gls = replicate(K, list(NULL)),gfs = replicate(K, list(NULL)))
   return(qg)
 }
 
 initialize_qg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
   set.seed(seed)
-  nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, loss = "mkl", max.iter = init_iter, verbose = FALSE, method = init_method)
+  nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, 
+												loss = "mkl", method = init_method,
+												max.iter = init_iter, verbose = FALSE,
+												show.warning = FALSE)
 	qg = initialize_qg_from_LF(L0 = nnmf_fit$W, F0 = t(nnmf_fit$H))
   return(qg)
 }
@@ -69,9 +76,12 @@ init_ebpmf_bg <- function(X,K, init, d){
   n = nrow(X)
 	p = ncol(X)
   if(is.null(init)){
-		nmf_r1 <- NNLM::nnmf(A = as.matrix(X), k = 1, loss = "mkl", max.iter = 1, verbose = FALSE, method = "lee")
+		nmf_r1 <- NNLM::nnmf(A = as.matrix(X), k = 1, 
+												 loss = "mkl", method = "lee",
+												 max.iter = 1, verbose = FALSE,
+												 show.warning = FALSE)
  		l0 = as.vector(nmf_r1$W)
-		f0 = as.vector(nmf_r1$H)
+		f0 = as.vector(nmf_r1$H)/K
 		L0 = matrix(replicate(n*K, 1), ncol = K)	
 		F0 = matrix(replicate(p*K, 1), ncol = K)	
 		qg = initialize_qg_from_LF(L0, F0)
@@ -97,7 +107,7 @@ init_ebpmf_bg <- function(X,K, init, d){
 ## compute KL divergence between prior and posterior from `ebpm` outputs
 compute_kl_ebpm <- function(y,s, posterior, ll){
   mask <- (y != 0)
-  E_loglik = - sum(s * posterior$mean) + sum(y[mask] * log(s[mask])) + sum(y[mask]*posterior$mean_log[mask])- sum(lgamma(y[mask] + 1))
+  E_loglik = - sum(s * posterior$mean) + sum(y[mask] * log(s[mask])) + sum(y[mask]*posterior$mean_log[mask]) - sum(lgamma(y[mask] + 1))
   return(E_loglik - ll)
 }
 

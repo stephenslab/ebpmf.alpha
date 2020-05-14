@@ -2,40 +2,11 @@
 % Please edit documentation in R/ebpmf_bg.R
 \name{rank1_bg}
 \alias{rank1_bg}
-\title{Empirical Bayes Poisson Matrix Factorization (rank 1)}
+\title{Empirical Bayes Poisson Matrix Factorization, Background Model (rank 1)}
 \usage{
-rank1_bg(d, X_rs, X_cs, l0, f0, pm_func, pm_control, init, fix_g)
-}
-\arguments{
-\item{X_rs, }{rowSums of X,  count matrix (dim(X) = c(n, p)).}
-
-\item{X_cs, }{colSums of X,  count matrix (dim(X) = c(n, p)).}
-
-\item{pm_func}{function for solving the \code{ebpm} subproblem}
-
-\item{pm_control}{control parameters for pm_func function}
-
-\item{init}{list(sf, gl, gf), where sf is the scale for ebpm problem for F,
-gl, gf are initialization for gl, gf; all can be set to NULL}
-
-\item{fix_g}{list(l, f) where l, f are either TRUE or FALSE}
-
-\item{d:}{summary(X), so it has `i`, `j` and `x` as attributes}
-}
-\value{
-A list containing elements:
-    \describe{
-      \item{\code{ql}}{approximate posterior for l}
-      \item{\code{gl}}{fitted g for l}
-      \item{\code{kl_l}}{kl divergence between q and g for l}
-      \item{\code{qf}}{approximate posterior for f}
-      \item{\code{gf}}{fitted g for f}
-      \item{\code{kl_f}}{kl divergence between q and g for f}
-     }
+rank1_bg(d, X_rs, X_cs, l0, f0, pm_func, pm_control, ql, gl, kl_l, qf, gf,
+  kl_f, fix_option)
 }
 \description{
-Empirical Bayes Poisson Matrix Factorization (rank 1)
-}
-\examples{
-To add
+Empirical Bayes Poisson Matrix Factorization, Background Model (rank 1)
 }

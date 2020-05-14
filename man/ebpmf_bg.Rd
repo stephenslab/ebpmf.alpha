@@ -4,9 +4,10 @@
 \alias{ebpmf_bg}
 \title{Empirical Bayes Poisson Matrix Factorization (Background Model)}
 \usage{
-ebpmf_bg(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l = mle_pm),
-  init = NULL, pm_control = NULL, fix_g = list(l = FALSE, f = FALSE),
-  maxiter = 100, tol = 1e-08, verbose = FALSE)
+ebpmf_bg(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l =
+  ebpm::ebpm_gamma_mixture), init = NULL, pm_control = NULL,
+  fix_option = list(l0 = FALSE, f0 = FALSE, gl = FALSE, ql = FALSE, gf =
+  FALSE, qf = FALSE), maxiter = 100, tol = 1e-08, verbose = FALSE)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}
@@ -19,8 +20,6 @@ For our purpose we use `mle_pm` or `ebpm_point_gammma`for \code{L}, and \code{eb
 
 \item{pm_control}{control parameters for pm_func function}
 
-\item{fix_g}{list(l, f) where l, f are either TRUE or FALSE}
-
 \item{maxiter}{maximum number of iterations}
 
 \item{tol}{stopping tolerance for ELBO}
@@ -28,13 +27,15 @@ For our purpose we use `mle_pm` or `ebpm_point_gammma`for \code{L}, and \code{eb
 \item{verbose}{print progress if set TRUE}
 
 \item{k}{number of topics}
+
+\item{fix_g}{list(l, f) where l, f are either TRUE or FALSE}
 }
 \value{
 A list containing elements:
     \describe{
       \item{\code{l0}}{sample-wise mean}
       \item{\code{f0}}{feature-wise mean}
-      \item{\code{qg}}{approximate posterior for l}
+      \item{\code{qg}}{list(ql, gl,qf, gf)}
       \item{\code{ELBO}}{ELBO objective for this VEB algorithm}
      }
 }

@@ -6,8 +6,8 @@
 \usage{
 ebpmf(X, K, pm_func = ebpm::ebpm_point_gamma, init = list(qg = NULL,
   init_method = "scd", init_iter = 20), pm_control = NULL,
-  fix_g = list(l = FALSE, f = FALSE), maxiter = 100, tol = 1e-08,
-  verbose = FALSE)
+  fix_option = list(gl = FALSE, ql = FALSE, gf = FALSE, qf = FALSE),
+  maxiter = 100, tol = 1e-08, verbose = FALSE)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}
@@ -19,8 +19,6 @@ ebpmf(X, K, pm_func = ebpm::ebpm_point_gamma, init = list(qg = NULL,
 
 \item{pm_control}{control parameters for pm_func function}
 
-\item{fix_g}{list(l, f) where l, f are either TRUE or FALSE}
-
 \item{maxiter}{maximum number of iterations}
 
 \item{tol}{stopping tolerance for ELBO}
@@ -28,6 +26,8 @@ ebpmf(X, K, pm_func = ebpm::ebpm_point_gamma, init = list(qg = NULL,
 \item{verbose}{print progress if set TRUE}
 
 \item{k}{number of topics}
+
+\item{fix_g}{list(l, f) where l, f are either TRUE or FALSE}
 }
 \value{
 A list containing elements:
