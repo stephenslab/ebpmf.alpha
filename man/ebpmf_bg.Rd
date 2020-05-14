@@ -7,7 +7,8 @@
 ebpmf_bg(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l =
   ebpm::ebpm_gamma_mixture), init = NULL, pm_control = NULL,
   fix_option = list(l0 = FALSE, f0 = FALSE, gl = FALSE, ql = FALSE, gf =
-  FALSE, qf = FALSE), maxiter = 100, tol = 1e-08, verbose = FALSE)
+  FALSE, qf = FALSE), maxiter = 100, tol = 1e-08, verbose = FALSE,
+  seed = 123)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}
@@ -24,7 +25,7 @@ For our purpose we use `mle_pm` or `ebpm_point_gammma`for \code{L}, and \code{eb
 
 \item{tol}{stopping tolerance for ELBO}
 
-\item{verbose}{print progress if set TRUE}
+\item{seed}{used when init is NULL}
 
 \item{k}{number of topics}
 

@@ -70,6 +70,7 @@ init_ebpmf <- function(X,K, init, d){
   return(list(qg = qg, B = B))
 }
 
+#' @export initialize_qg_l0f0
 initialize_qg_l0f0 <- function(X, K, seed = 123){
 	set.seed(seed)
 	n = nrow(X)
