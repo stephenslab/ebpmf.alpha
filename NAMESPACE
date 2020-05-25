@@ -2,8 +2,11 @@
 
 export(ebpmf)
 export(ebpmf_bg)
+export(ebpmf_wbg)
 export(initialize_qg_from_LF)
 export(initialize_qg_l0f0)
+export(initialize_qgl0f0_from_LF)
+export(initialize_qgl0f0w_from_LF)
 export(mle_pm)
 export(pmf)
 export(rank1)

@@ -28,6 +28,14 @@ update_qg <- function(tmp, qg, k){
 ## Functions for initialization
 ## ================================================================================================================
 
+bg_prior <- function(){
+  aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3, 1e-8, 1e-16)
+  D = length(aL)
+  g = ebpm::gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
+  return(g)
+}
+
+
 #' @export initialize_qg_from_LF
 initialize_qg_from_LF <- function(L0,F0){
   K = ncol(L0)
@@ -70,6 +78,8 @@ init_ebpmf <- function(X,K, init, d){
   return(list(qg = qg, B = B))
 }
 
+##### functions for initializing `ebpmf_wbg`
+
 #' @export initialize_qg_l0f0
 initialize_qg_l0f0 <- function(X, K, seed = 123){
 	set.seed(seed)
@@ -90,25 +100,81 @@ initialize_qg_l0f0 <- function(X, K, seed = 123){
 	return(list(qg = qg, l0 = l0, f0 = f0))
 }
 
+#' @export initialize_qgl0f0_from_LF
+initialize_qgl0f0_from_LF <- function(L, F){
+  L[L <  1e-8] <- 1e-8
+  F[F <  1e-8] <- 1e-8
+	l0 = apply(L, 1, mean) ## use median tends to get huge numbers ...
+  #l0[l0 == 0] <- 1e-8
+  f0 = apply(F, 1, mean)
+  #f0[f0 == 0] <- 1e-8
+  L = L/l0
+  F = F/f0
+  qg = ebpmf.alpha::initialize_qg_from_LF(L0 = L, F0 = F)
+  ## replace g with mixture of gamma
+  K = ncol(L)
+  qg$gls = replicate(K, list(bg_prior()))
+  qg$gfs = replicate(K, list(bg_prior()))
+  return(list(qg = qg, l0 = l0, f0 = f0))
+}
+
 ## output: qg, B
 ## init either NULL, or list(qg, l0, f0)
 init_ebpmf_bg <- function(X,K, init, d, seed = 123){
-  n = nrow(X)
-	p = ncol(X)
+	n = nrow(X)
+  p = ncol(X)
   if(is.null(init)){
-		init = initialize_qg_l0f0(X = X, K = K, seed = seed)
-	}
-  qg = init$qg
-  l0 = init$l0
-  f0 = init$f0
-	rm(init)
-	## TODO: speedup
+		nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K,
+                        loss = "mkl", method = "lee",
+                        max.iter = 50, verbose = FALSE,
+                        show.warning = FALSE)
+		L = nnmf_fit$W
+		F = t(nnmf_fit$H)
+		init = initialize_qgl0f0_from_LF(L = L, F = F)
+  }
+	l0 = init$l0
+	f0 = init$f0
+	qg = init$qg
   B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1])
   for(k in 2:K){
     B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
   }
   return(list(l0 = l0, f0 = f0, qg = qg, B = B))
 }
+
+##### functions for initializing `ebpmf_wbg`
+
+#' @export initialize_qgl0f0w_from_LF
+initialize_qgl0f0w_from_LF <- function(L, F){
+  K = ncol(L)
+	w = replicate(K, 1)
+  init_tmp = initialize_qgl0f0_from_LF(L = L, F = F)
+	return(list(qg = init_tmp$qg, l0 = init_tmp$l0, f0 = init_tmp$f0, w = w))
+}
+
+init_ebpmf_wbg <- function(X, K, init, d, seed = 123){
+	n = nrow(X)
+  p = ncol(X)
+  if(is.null(init)){
+ 		nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K,
+                        loss = "mkl", method = "scd",
+                        max.iter = 50, verbose = FALSE,
+                        show.warning = FALSE)
+    L = nnmf_fit$W
+    F = t(nnmf_fit$H)
+		init = initialize_qgl0f0w_from_LF(L = L, F = F)
+	}
+	l0 = init$l0
+	f0 = init$f0
+	qg = init$qg
+	w = init$w
+	B = w[1] * exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1])
+  for(k in 2:K){
+    B <- B + w[k] * exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
+  }
+	return(list(l0 = l0, f0 = f0, w = w, qg = qg, B = B))
+}
+
 
 ## ================================================================================================================
 ## Functions for computing ELBO
