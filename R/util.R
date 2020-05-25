@@ -2,6 +2,7 @@
 ## Functions updating in ebpmf
 ## ================================================================================================================
 
+#' @export compute_EZ
 compute_EZ <- function(d, B, B_k){
   Ez.val = replicate(length(d$i), 0)
   mask <- (B != 0)
@@ -10,6 +11,7 @@ compute_EZ <- function(d, B, B_k){
   return(list(rs = Matrix::rowSums(Ez), cs = Matrix::colSums(Ez)))
 }
 
+#' @export update_qg
 update_qg <- function(tmp, qg, k){
   qg$qls_mean[,k] = tmp$ql$mean
   qg$qls_mean_log[,k] = tmp$ql$mean_log
@@ -28,6 +30,7 @@ update_qg <- function(tmp, qg, k){
 ## Functions for initialization
 ## ================================================================================================================
 
+#' @export bg_prior
 bg_prior <- function(){
   aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3, 1e-8, 1e-16)
   D = length(aL)
@@ -53,6 +56,7 @@ initialize_qg_from_LF <- function(L0,F0){
   return(qg)
 }
 
+#' @export initialize_qg
 initialize_qg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123){
   set.seed(seed)
   nnmf_fit = NNLM::nnmf(A = as.matrix(X), k = K, 
@@ -65,6 +69,8 @@ initialize_qg <- function(X, K, init_method = "scd", init_iter = 20, seed = 123)
 
 
 ## initialization for `ebpmf`
+
+#' @export init_ebpmf
 init_ebpmf <- function(X,K, init, d){
   qg = init$qg
   if(is.null(qg)){
@@ -94,7 +100,7 @@ initialize_qg_l0f0 <- function(X, K, seed = 123){
 	## initialize g
 	aL = c(seq(0.01, 0.10, 0.01), seq(0.2, 0.9, 0.1), seq(1,15,2), 20, 50, 75, 100, 200, 1e3)
   D = length(aL)
-  g = gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
+  g = ebpm::gammamix(pi = replicate(D, 1/D), shape = aL, scale = 1/aL)
   qg$gls = replicate(K, list(g))
   qg$gfs = replicate(K, list(g))
 	return(list(qg = qg, l0 = l0, f0 = f0))
@@ -120,6 +126,8 @@ initialize_qgl0f0_from_LF <- function(L, F){
 
 ## output: qg, B
 ## init either NULL, or list(qg, l0, f0)
+
+#' @export init_ebpmf_bg
 init_ebpmf_bg <- function(X,K, init, d, seed = 123){
 	n = nrow(X)
   p = ncol(X)
@@ -130,7 +138,7 @@ init_ebpmf_bg <- function(X,K, init, d, seed = 123){
                         show.warning = FALSE)
 		L = nnmf_fit$W
 		F = t(nnmf_fit$H)
-		init = initialize_qgl0f0_from_LF(L = L, F = F)
+		init = ebpmf.alpha::initialize_qgl0f0_from_LF(L = L, F = F)
   }
 	l0 = init$l0
 	f0 = init$f0
@@ -148,10 +156,11 @@ init_ebpmf_bg <- function(X,K, init, d, seed = 123){
 initialize_qgl0f0w_from_LF <- function(L, F){
   K = ncol(L)
 	w = replicate(K, 1)
-  init_tmp = initialize_qgl0f0_from_LF(L = L, F = F)
+  init_tmp = ebpmf.alpha::initialize_qgl0f0_from_LF(L = L, F = F)
 	return(list(qg = init_tmp$qg, l0 = init_tmp$l0, f0 = init_tmp$f0, w = w))
 }
 
+#' @export init_ebpmf_wbg
 init_ebpmf_wbg <- function(X, K, init, d, seed = 123){
 	n = nrow(X)
   p = ncol(X)
@@ -162,7 +171,7 @@ init_ebpmf_wbg <- function(X, K, init, d, seed = 123){
                         show.warning = FALSE)
     L = nnmf_fit$W
     F = t(nnmf_fit$H)
-		init = initialize_qgl0f0w_from_LF(L = L, F = F)
+		init = ebpmf.alpha::initialize_qgl0f0w_from_LF(L = L, F = F)
 	}
 	l0 = init$l0
 	f0 = init$f0
@@ -181,6 +190,8 @@ init_ebpmf_wbg <- function(X, K, init, d, seed = 123){
 ## ================================================================================================================
 
 ## compute KL divergence between prior and posterior from `ebpm` outputs
+
+#' @export compute_kl_ebpm
 compute_kl_ebpm <- function(y,s, posterior, ll){
   mask <- (y != 0)
   E_loglik = - sum(s * posterior$mean) + sum(y[mask] * log(s[mask])) + sum(y[mask]*posterior$mean_log[mask]) - sum(lgamma(y[mask] + 1))
