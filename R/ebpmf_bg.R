@@ -45,22 +45,23 @@ ebpmf_bg <- function(X, K,
   ## initialization
 	init_tmp <- init_ebpmf_bg(X = X, K = K, init = init, d = d, seed = seed)
   qg <- init_tmp$qg
-  B <- init_tmp$B
+  b <- init_tmp$b
+	a <- init_tmp$a
 	l0 <- init_tmp$l0
 	f0 <- init_tmp$f0
   rm(init_tmp)
   ## update iteratively
   ELBOs <- c()
+	KLs <- c()
   for(i in 1:maxiter){
+		b_k_max = replicate(length(d$x),0) ## max b_k
     for(k in 1:K){
 			## store B_k
- 			B_k = exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k]) 
+ 			b_k = qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a 
     	## compute q(Z)
-      Ez <- compute_EZ(d = d,B = B,B_k = B_k)
+      Ez <- compute_EZ(d = d,b = b,b_k = b_k)
       ## update (qL, gL, qF, gF) 
       #### TODO: change initialization`
-			init_r1 = list(sf = sum(l0 * qg$qls_mean[,k]),
-                     gl = qg$gls[[k]], gf = qg$gfs[[k]])
       rank1_qg <- rank1_bg(d = d, X_rs = Ez$rs, X_cs = Ez$cs,
 														l0 = l0, f0 = f0, 
 														pm_func = pm_func, pm_control = pm_control,
@@ -76,9 +77,14 @@ ebpmf_bg <- function(X, K,
       rm(Ez)
       qg = update_qg(tmp = rank1_qg, qg = qg, k = k)
       rm(rank1_qg)
-			## update B, Lam
-			B = B - B_k + exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k])
-		 #	B[B < 0] <- 1e-20 ## numerical issue gets - epsilon	
+
+			## update b
+			# B = B - B_k + exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k])
+			b_k0 = b_k
+			b_k = qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
+			#if(b > b_k0){print(sprintf("k = %d, b > b_k0", k))}
+			b = log( exp(b) - exp(b_k0) + exp(b_k)  )
+			b_k_max = pmax(b_k, b_k_max)
     }
 		## update l0, f0
 		if(!fix_option$l0){
@@ -92,8 +98,15 @@ ebpmf_bg <- function(X, K,
     ## compute ELBO
 		KL = sum(qg$kl_l) + sum(qg$kl_f)
     ELBO = - sum( colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) +
-						sum(d$x * (log(l0[d$i]) + log(f0[d$j]) + log(B)) ) - KL - const 	
+						sum(d$x * (log(l0[d$i]) + log(f0[d$j]) + b + a) ) - KL - const 	
 		ELBOs <- c(ELBOs, ELBO)
+		KLs <- c(KLs, KL)
+		## update a & b 
+		#a0 = a
+		#a = b_k_max + a0
+		#b = (b + a0) - a
+		b = b - b_k_max
+		a = b_k_max + a
 		## verbose
     if(verbose){
       print("iter         ELBO")
@@ -106,7 +119,7 @@ ebpmf_bg <- function(X, K,
     #   break
     # }
   }
-  return(list(l0 = l0, f0 = f0, qg = qg, ELBO = ELBOs))
+  return(list(l0 = l0, f0 = f0, qg = qg, ELBO = ELBOs, KL = KLs))
 }
 
 

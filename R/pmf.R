@@ -17,23 +17,28 @@ pmf <- function(X, K, init, maxiter = 100, verbose = FALSE, seed = 123){
 	init_tmp = init_pmf(X = X, K = K, init = init, d= d, seed = seed)
 	L = init_tmp$L
 	F = init_tmp$F
-	B = init_tmp$B
+	b = init_tmp$b
+	a = init_tmp$a
 	rm(init_tmp)
 	log_liks = c()
 	for(i in 1:maxiter){
+		b_k_max = replicate(length(d$x), 0) ## max b_k
 		for(k in 1:K){
 			## compute Ez
-			B_k = L[d$i,k] * F[d$j,k]
-			Ez <- compute_EZ(d = d, B = B, B_k = B_k)
+			b_k = log(L[d$i,k]) + log(F[d$j,k]) - a
+			Ez <- compute_EZ(d = d, b = b, b_k = b_k)
 			## rank-1 update
 			L[,k] = Ez$rs/sum(F[,k])
 			F[,k] = Ez$cs/sum(L[,k])
 			rm(Ez)
 			## update B
-			B = B - B_k + L[d$i,k] * F[d$j,k]
+			b_k0 = b_k
+			b_k = log(L[d$i,k]) + log(F[d$j,k]) - a
+      b = log( exp(b) - exp(b_k0) + exp(b_k)  )
+      b_k_max = pmax(b_k, b_k_max)
 		}
 		## compute loglikelihood
-		ll = - sum(colSums(L)*colSums(F)) + sum(d$x * log(B)) - const
+		ll = - sum(colSums(L)*colSums(F)) + sum(d$x * (b + a)) - const
 		log_liks = c(log_liks, ll)
 		## verbose
     if(verbose){
@@ -55,9 +60,18 @@ init_pmf <- function(X, K, init, d, seed = 123){
 		L <- init$L
 		F <- init$F
 	}
-  B = L[d$i,1] * F[d$j,1]
-  for(k in 2:K){
-    B <- B + L[d$i,k] * F[d$j,k]
+
+	## compute `a`
+  a = replicate(length(d$x), 0)
+  for(k in 1:K){
+    b_k_tmp <- log(L[d$i,k]) + log(F[d$j,k])
+    a <- pmax(a, b_k_tmp)
   }
-	return(list(L = L, F = F, B = B))
+  ## compute b
+  b = log(L[d$i,1]) + log(F[d$j,1]) - a
+  for(k in 2:K){
+    b_k = log(L[d$i,k]) + log(F[d$j,k]) - a
+    b <- log( exp(b) + exp(b_k)  )
+  }
+	return(list(L = L, F = F, b = b, a = a))
 }

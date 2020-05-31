@@ -3,11 +3,8 @@
 ## ================================================================================================================
 
 #' @export compute_EZ
-compute_EZ <- function(d, B, B_k){
-  Ez.val = replicate(length(d$i), 0)
-  mask <- (B != 0)
-  Ez.val[mask] = d$x[mask] * B_k[mask]/B[mask]
-  Ez = sparseMatrix(i = d$i, j = d$j, x = Ez.val)
+compute_EZ <- function(d, b, b_k){
+  Ez = sparseMatrix(i = d$i, j = d$j, x = d$x * exp(b_k - b))
   return(list(rs = Matrix::rowSums(Ez), cs = Matrix::colSums(Ez)))
 }
 
@@ -77,11 +74,19 @@ init_ebpmf <- function(X,K, init, d){
     qg = initialize_qg(X, K, init_method =  init$init_method, init_iter = init$init_iter)
   }
   ## TODO: speedup
-  B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1])
-  for(k in 2:K){
-    B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
+  ## compute `a`
+  a = replicate(length(d$x), 0)
+  for(k in 1:K){
+    b_k_tmp <- qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k]
+    a <- pmax(a, b_k_tmp)
   }
-  return(list(qg = qg, B = B))
+  ## compute b
+  b = qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1] - a
+  for(k in 2:K){
+    b_k = qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k] - a
+    b <- log( exp(b) + exp(b_k)  )
+  }
+	return(list(qg = qg, b = b, a = a))
 }
 
 ##### functions for initializing `ebpmf_wbg`
@@ -143,11 +148,19 @@ init_ebpmf_bg <- function(X,K, init, d, seed = 123){
 	l0 = init$l0
 	f0 = init$f0
 	qg = init$qg
-  B = exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1])
-  for(k in 2:K){
-    B <- B + exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
+	## compute `a`
+	a = replicate(length(d$x), 0)
+	for(k in 1:K){
+    b_k_tmp <- qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k]
+		a <- pmax(a, b_k_tmp)
   }
-  return(list(l0 = l0, f0 = f0, qg = qg, B = B))
+	## compute b
+  b = qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1] - a
+  for(k in 2:K){
+		b_k = qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k] - a
+    b <- log( exp(b) + exp(b_k)  )
+  }
+  return(list(l0 = l0, f0 = f0, qg = qg, b = b, a = a))
 }
 
 ##### functions for initializing `ebpmf_wbg`
@@ -177,11 +190,20 @@ init_ebpmf_wbg <- function(X, K, init, d, seed = 123){
 	f0 = init$f0
 	qg = init$qg
 	w = init$w
-	B = w[1] * exp(qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1])
-  for(k in 2:K){
-    B <- B + w[k] * exp(qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k])
+	
+	## compute `a`
+  a = replicate(length(d$x), 0)
+  for(k in 1:K){
+    b_k_tmp <- log(w[k]) + qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k]
+    a <- pmax(a, b_k_tmp)
   }
-	return(list(l0 = l0, f0 = f0, w = w, qg = qg, B = B))
+  ## compute b
+  b = log(w[1]) + qg$qls_mean_log[d$i, 1] + qg$qfs_mean_log[d$j, 1] - a
+  for(k in 2:K){
+    b_k = log(w[k]) + qg$qls_mean_log[d$i, k] + qg$qfs_mean_log[d$j, k] - a
+    b <- log( exp(b) + exp(b_k)  )
+  }
+	return(list(l0 = l0, f0 = f0, w = w, qg = qg, b = b, a = a))
 }
 
 
@@ -198,6 +220,21 @@ compute_kl_ebpm <- function(y,s, posterior, ll){
   return(E_loglik - ll)
 }
 
+
+compute_elbo_bg <- function(l0, f0, qg, b, a, d, const){
+  KL = sum(qg$kl_l) + sum(qg$kl_f)
+  elbo = - sum(colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) +
+            sum(d$x * (log(l0[d$i]) + log(f0[d$j]) + b + a) ) - KL - const
+  return(elbo)
+}
+
+
+compute_elbo_wbg <- function(w, l0, f0, qg, b, a, d, const){
+	KL = sum(qg$kl_l) + sum(qg$kl_f)
+	elbo = - sum(w * colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) +
+            sum(d$x * (log(l0[d$i]) + log(f0[d$j]) + b + a) ) - KL - const
+	return(elbo)
+}
 
 ## ================================================================================================================
 ## MLE for Poisson Means, with the same format as `ebpm`
@@ -229,3 +266,32 @@ apply.nonzeros <- function (X, f) {
   d <- summary(X)
   return(sparseMatrix(i = d$i,j = d$j,x = f(d$x),dims = dim(X)))
 }
+
+
+check_progress_bg <- function(elbo_prev, which_part,k,
+                              l0, f0, qg, b, a, d, const){
+  ## check progress
+  elbo = compute_elbo_bg(l0 = l0, f0 = f0, qg = qg,
+                          b = b, a = a, d = d, const = const)
+  if(elbo < elbo_prev){
+          print(sprintf("k = %d, %s updated, elbo_diff = %f",
+                        k, which_part, elbo - elbo_prev))
+  }
+  return(elbo)
+}
+
+
+
+check_progress_wbg <- function(elbo_prev, which_part,k, 
+															 w_log, l0, f0, qg, b, a, d, const){
+	## check progress
+  elbo = compute_elbo_wbg(w = exp(w_log), l0 = l0, f0 = f0, qg = qg,
+                          b = b, a = a, d = d, const = const)
+  if(elbo < elbo_prev){
+					print(sprintf("k = %d, %s updated, elbo_diff = %f", 
+												k, which_part, elbo - elbo_prev))
+  }
+	return(elbo)
+}
+
+

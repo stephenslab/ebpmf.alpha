@@ -39,16 +39,19 @@ ebpmf <- function(X, K,pm_func = ebpm::ebpm_point_gamma,
 	## initialization
   init_tmp <- init_ebpmf(X = X, K = K, init = init, d = d)
   qg <- init_tmp$qg
-  B <- init_tmp$B
+  b <- init_tmp$b
+  a <- init_tmp$a
   rm(init_tmp)
   ## update iteratively
   ELBOs <- c()
+  KLs <- c()
   for(i in 1:maxiter){
+		b_k_max = replicate(length(d$x), 0) ## max b_k
     for(k in 1:K){
       ## compute Ez 
       ## use q to compute Ez; output list(rs, cs, B_k)
-			B_k = exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k])
-      Ez <- compute_EZ(d = d, B = B, B_k = B_k)
+      b_k = qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
+			Ez <- compute_EZ(d = d, b = b, b_k = b_k)
       ## rank1 update 
       ## use Ez to upudate q, g; output (list(B, kl_l, kl_f, qg))
 			rank1_qg <- rank1(d = d, X_rs = Ez$rs, X_cs = Ez$cs,
@@ -65,12 +68,22 @@ ebpmf <- function(X, K,pm_func = ebpm::ebpm_point_gamma,
       rm(Ez)
       qg = update_qg(rank1_qg, qg, k)
       rm(rank1_qg)
-			B = B - B_k + exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k])
-    }
+    	b_k0 = b_k
+      b_k = qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
+      b = log( exp(b) - exp(b_k0) + exp(b_k)  )
+      b_k_max = pmax(b_k, b_k_max)
+		}
     ## compute ELBO
     KL = sum(qg$kl_l) + sum(qg$kl_f)
-    ELBO = - sum( colSums(qg$qls_mean) * colSums(qg$qfs_mean) ) + sum(d$x * log(B)) - KL - const
+    ELBO = - sum( colSums(qg$qls_mean) * colSums(qg$qfs_mean) ) + sum(d$x * (b + a)) - KL - const
     ELBOs <- c(ELBOs, ELBO)
+		KLs <- c(KLs, KL)
+		## update a & b
+    #a0 = a
+    #a = b_k_max + a0
+    #b = (b + a0) - a
+    b = b - b_k_max
+    a = b_k_max + a
     ## verbose
     if(verbose){
       print("iter         ELBO")
@@ -83,7 +96,7 @@ ebpmf <- function(X, K,pm_func = ebpm::ebpm_point_gamma,
     #   break
     # }
   }
-  return(list(qg = qg, ELBO = ELBOs))
+  return(list(qg = qg, ELBO = ELBOs, KL = KLs))
 }
 
 
