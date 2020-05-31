@@ -63,7 +63,6 @@ ebpmf_wbg <- function(X, K,
     	## compute q(Z)
       Ez <- compute_EZ(d = d,b = b,b_k = b_k)
       ## update (qL, gL, qF, gF) 
-      #### TODO: change initialization`
       rank1_qg <- rank1_wbg(d = d, X_rs = Ez$rs, X_cs = Ez$cs,
 														l0 = l0, f0 = f0, w_log_k = w_log[k], 
 														pm_func = pm_func, pm_control = pm_control,
@@ -79,19 +78,17 @@ ebpmf_wbg <- function(X, K,
 			rm(Ez)
       qg = update_qg(tmp = rank1_qg, qg = qg, k = k)
       rm(rank1_qg)
+			## update w[k]
+ 			w_log[k] = log( sum(d$x * exp(b_k - b)) ) - log( sum(l0 * qg$qls_mean[,k]) * sum(f0 * qg$qfs_mean[,k])  )
 			## update b
-			# B = B - B_k + exp(qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k])
-			#if(i == 12 & k == 10){browser()}
       b_k0 = b_k
-      b_k = qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
+      b_k = w_log[k] + qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
       ## some issue here: b_k > b ...
 			b = log( exp(b) - exp(b_k0) + exp(b_k)  )
 			n_err = sum(is.nan(b))
 			if(n_err > 0){print(sprintf("%d error in b in k = %d", n_err, k))}
 			b[is.nan(b)] <- 0
       b_k_max = pmax(b_k, b_k_max)
-			## update w[k]
-# 			w_log[k] = log(sum(d$x * exp(b_k - b))) - log( sum(l0 * qg$qls_mean[,k]) * sum(f0 * qg$qfs_mean[,k])  )
     }
 		## update l0, f0
 		if(!fix_option$l0){
@@ -102,7 +99,6 @@ ebpmf_wbg <- function(X, K,
 			denom <- colSums(w * t(qg$qfs_mean) * colSums(l0 * qg$qls_mean)) 
     	f0 <- X_cs/denom
 		}
-
     ## compute ELBO
 		w = exp(w_log)
 		KL = sum(qg$kl_l) + sum(qg$kl_f)
@@ -118,6 +114,7 @@ ebpmf_wbg <- function(X, K,
     #b = (b + a0) - a
     b = b - b_k_max
     a = b_k_max + a
+		print(max(a))
 		#print(max(a))
 		## verbose
     if(verbose){
