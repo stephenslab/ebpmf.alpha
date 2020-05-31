@@ -4,8 +4,20 @@
 \alias{rank1}
 \title{Empirical Bayes Poisson Matrix Factorization (rank 1)}
 \usage{
-rank1(d, X_rs, X_cs, pm_func, pm_control, ql, gl, kl_l, qf, gf, kl_f,
-  fix_option)
+rank1(
+  d,
+  X_rs,
+  X_cs,
+  pm_func,
+  pm_control,
+  ql,
+  gl,
+  kl_l,
+  qf,
+  gf,
+  kl_f,
+  fix_option
+)
 }
 \description{
 Empirical Bayes Poisson Matrix Factorization (rank 1)

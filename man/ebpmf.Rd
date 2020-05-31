@@ -4,10 +4,17 @@
 \alias{ebpmf}
 \title{Empirical Bayes Poisson Matrix Factorization}
 \usage{
-ebpmf(X, K, pm_func = ebpm::ebpm_point_gamma, init = list(qg = NULL,
-  init_method = "scd", init_iter = 20), pm_control = NULL,
+ebpmf(
+  X,
+  K,
+  pm_func = ebpm::ebpm_point_gamma,
+  init = list(qg = NULL, init_method = "scd", init_iter = 20),
+  pm_control = NULL,
   fix_option = list(gl = FALSE, ql = FALSE, gf = FALSE, qf = FALSE),
-  maxiter = 100, tol = 1e-08, verbose = FALSE)
+  maxiter = 100,
+  tol = 1e-08,
+  verbose = FALSE
+)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}

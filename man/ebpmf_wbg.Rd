@@ -4,11 +4,19 @@
 \alias{ebpmf_wbg}
 \title{Empirical Bayes Poisson Matrix Factorization (Background Model with weights)}
 \usage{
-ebpmf_wbg(X, K, pm_func = list(f = ebpm::ebpm_gamma_mixture, l =
-  ebpm::ebpm_gamma_mixture), init = NULL, pm_control = NULL,
-  fix_option = list(l0 = FALSE, f0 = FALSE, gl = FALSE, ql = FALSE, gf =
-  FALSE, qf = FALSE), maxiter = 100, tol = 1e-08, verbose = FALSE,
-  seed = 123)
+ebpmf_wbg(
+  X,
+  K,
+  pm_func = list(f = ebpm::ebpm_gamma_mixture, l = ebpm::ebpm_gamma_mixture),
+  init = NULL,
+  pm_control = NULL,
+  fix_option = list(l0 = FALSE, f0 = FALSE, gl = FALSE, ql = FALSE, gf = FALSE, qf =
+    FALSE),
+  maxiter = 100,
+  tol = 1e-08,
+  verbose = FALSE,
+  seed = 123
+)
 }
 \arguments{
 \item{X}{count matrix (dim(X) = c(n, p)).}

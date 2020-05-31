@@ -129,6 +129,27 @@ initialize_qgl0f0_from_LF <- function(L, F){
   return(list(qg = qg, l0 = l0, f0 = f0))
 }
 
+## given L_ik, we compute MLE for X_ij ~ Pois(f_j0 sum_k l_ik)
+## which gives us `f_j0 = X_.j/l_..`
+## then we transform it into background model
+
+#' @export initialize_qgl0f0_from_L
+initialize_qgl0f0_from_L <- function(X, L){
+	p = ncol(X)
+	K = ncol(L)
+  L[L <  1e-8] <- 1e-8
+  l0 = apply(L, 1, mean) ## use median tends to get huge numbers ...
+  f0 = colSums(X)/sum(L)
+  #f0[f0 == 0] <- 1e-8
+  L = L/l0
+  F = matrix(replicate(p*K, 1), ncol = K)
+  qg = ebpmf.alpha::initialize_qg_from_LF(L0 = L, F0 = F)
+  ## replace g with mixture of gamma
+  qg$gls = replicate(K, list(bg_prior()))
+  qg$gfs = replicate(K, list(bg_prior()))
+  return(list(qg = qg, l0 = l0, f0 = f0))
+}
+
 ## output: qg, B
 ## init either NULL, or list(qg, l0, f0)
 
@@ -171,6 +192,14 @@ initialize_qgl0f0w_from_LF <- function(L, F){
 	w = replicate(K, 1)
   init_tmp = ebpmf.alpha::initialize_qgl0f0_from_LF(L = L, F = F)
 	return(list(qg = init_tmp$qg, l0 = init_tmp$l0, f0 = init_tmp$f0, w = w))
+}
+
+#' @export initialize_qgl0f0w_from_L
+initialize_qgl0f0w_from_L <- function(X, L){
+  K = ncol(L)
+  w = replicate(K, 1)
+  init_tmp = ebpmf.alpha::initialize_qgl0f0_from_L(X = X, L = L)
+  return(list(qg = init_tmp$qg, l0 = init_tmp$l0, f0 = init_tmp$f0, w = w))
 }
 
 #' @export init_ebpmf_wbg
