@@ -114,8 +114,6 @@ ebpmf_wbg <- function(X, K,
     #b = (b + a0) - a
     b = b - b_k_max
     a = b_k_max + a
-		print(max(a))
-		#print(max(a))
 		## verbose
     if(verbose){
       print("iter         ELBO")
