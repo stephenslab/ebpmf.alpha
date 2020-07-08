@@ -78,34 +78,44 @@ ebpmf_wbg <- function(X, K,
 			rm(Ez)
       qg = update_qg(tmp = rank1_qg, qg = qg, k = k)
       rm(rank1_qg)
-			## update w[k]
- 			w_log[k] = log( sum(d$x * exp(b_k - b)) ) - log( sum(l0 * qg$qls_mean[,k]) * sum(f0 * qg$qfs_mean[,k])  )
 			## update b
       b_k0 = b_k
       b_k = w_log[k] + qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
-      ## some issue here: b_k > b ...
 			b = log( exp(b) - exp(b_k0) + exp(b_k)  )
-			n_err = sum(is.nan(b))
-			if(n_err > 0){print(sprintf("%d error in b in k = %d", n_err, k))}
-			b[is.nan(b)] <- 0
-      b_k_max = pmax(b_k, b_k_max)
     }
+		## update w[1:K], and b accordingly
+		b_new = b
+		for(k in 1:K){
+			b_k = w_log[k] + qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
+			w_log[k] = log( sum(d$x * exp(b_k - b)) ) - log( sum(l0 * qg$qls_mean[,k]) * sum(f0 * qg$qfs_mean[,k]) )
+			b_k_new = w_log[k] + qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
+			b_new =  log( exp(b_new) - exp(b_k) + exp(b_k_new)  )
+			b_k_max = pmax(b_k, b_k_max)
+		}
+		b = b_new
+   
+	 	## TODO: weed out unnecessary w's	
+		## check if nonzero w_k is necessary, with greedy approach
+		
+		### find the idx for w to be checked, the order matters
+
+
+		### 
+		
 		## update l0, f0
-		if(!fix_option$l0){
-			denom <- colSums(w * t(qg$qls_mean) * colSums(f0 * qg$qfs_mean)) 
-			l0 <- X_rs/denom
-		}
-		if(!fix_option$f0){
-			denom <- colSums(w * t(qg$qfs_mean) * colSums(l0 * qg$qls_mean)) 
-    	f0 <- X_cs/denom
-		}
-    ## compute ELBO
+    if(!fix_option$l0){
+      denom <- colSums(w * t(qg$qls_mean) * colSums(f0 * qg$qfs_mean))
+      l0 <- X_rs/denom
+    }
+    if(!fix_option$f0){
+      denom <- colSums(w * t(qg$qfs_mean) * colSums(l0 * qg$qls_mean))
+      f0 <- X_cs/denom
+    }
+		## compute ELBO
 		w = exp(w_log)
 		KL = sum(qg$kl_l) + sum(qg$kl_f)
 		ELBO = compute_elbo_wbg(w = w, l0 = l0, f0 = f0, qg = qg, 
 														b = b, a = a, d = d, const = const)
-   # ELBO = - sum(w * colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) +
-	#					sum(d$x * (log(l0[d$i]) + log(f0[d$j]) + b + a) ) - KL - const 	
 		ELBOs <- c(ELBOs, ELBO)
 		KLs <- c(KLs, KL)
 		## update a & b
