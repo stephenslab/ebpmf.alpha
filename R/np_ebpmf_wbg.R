@@ -25,7 +25,7 @@
 #' To add
 #' @export  ebpmf_wbg
 
-np_ebpmf_wbg <- function(X, K, alpha, 
+np_ebpmf_wbg <- function(X, K, alpha = 1, 
 										 pm_func = list(f = ebpm::ebpm_gamma_mixture, 
 																		l = ebpm::ebpm_gamma_mixture),
 										 init = NULL, pm_control = NULL,
@@ -93,7 +93,7 @@ np_ebpmf_wbg <- function(X, K, alpha,
 			## update tau
 			tau[k] = optim_tau_k(alpha = alpha, tau = tau, k = k, 
 													 zeta_sum = zeta_sum, zeta = zeta, d= d,
-													 l0 = l0, f0 = f0, qg = qg, eps_bar = eps_bar)## TODO
+													 l0 = l0, f0 = f0, qg = qg, eps_bar = eps_bar)
 			w_bar_log[k] = log(tau[k]) + sum( log(1 - tau[1:(k-1)]) )
 			w_hat_log[k] = w_bar_log[k]
 
@@ -124,7 +124,7 @@ np_ebpmf_wbg <- function(X, K, alpha,
 		## compute ELBO
 		KL = sum(qg$kl_l) + sum(qg$kl_f)
 		ELBO = compute_elbo_np_wbg(alpha = alpha, w_bar = w_bar, l0 = l0, f0 = f0, qg = qg, 
-														b = b, a = a, d = d, Lam_res = Lam_res, const = const) ## TODO
+														b = b, a = a, d = d, Lam_res = Lam_res, const = const)
 		ELBOs <- c(ELBOs, ELBO)
 		KLs <- c(KLs, KL)
 		## update a & b
@@ -167,6 +167,7 @@ optim_tau_k <- function(alpha, tau, k, zeta_sum, zeta, d, l0, f0, qg, eps_bar){
 	B = sum( d$x * (1 - zeta_sum) ) + alpha -1
 	C = sum( d$x * zeta )
 	tau_k = solve_quadratic(A = A, B = B, C = C)
+	return(tau_k)
 }
 
 
@@ -177,10 +178,10 @@ solve_quadratic <- function(A, B, C){
 	s1 = (-b + sqrt(b^2 - 4*a*C))/(2*a)
 	s2 = (-b - sqrt(b^2 - 4*a*C))/(2*a)
 	if(s1*(1 - s1) > 0){
-		return(s1)
+		return(max(s1, 1e-20))
 	}
 	if(s2*(1 - s2) > 0){
-    return(s2)
+    return(max(s2, 1e-20))
   }
 }
 
