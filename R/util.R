@@ -282,6 +282,17 @@ compute_elbo_wbg <- function(w, l0, f0, qg, b, a, d, const){
 	return(elbo)
 }
 
+compute_elbo_np_wbg <- function(alpha, w_bar, l0, f0, qg, b, a, d, Lam_res,const){
+	K = ncol(qg$qls_mean)
+  KL = sum(qg$kl_l) + sum(qg$kl_f)
+  elbo = - sum(w_bar * colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean) ) -
+					sum(l0)*sum(f0)*Lam_res +
+					sum(d$x * (log(l0[d$i]) + log(f0[d$j]) + b + a) ) +
+				 	(alpha - 1)*(sum(log(1 - tau))) - K * lbeta(1, alpha)  - KL - const
+  return(elbo)
+}
+
+
 ## ================================================================================================================
 ## MLE for Poisson Means, with the same format as `ebpm`
 ## ================================================================================================================

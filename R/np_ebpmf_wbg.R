@@ -69,7 +69,8 @@ np_ebpmf_wbg <- function(X, K, alpha,
 			## store b_k
  			b_k = w_log[k] + qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
     	## update zeta_sum
-			zeta_sum = zeta_sum + exp(b_k - b)
+			zeta = exp(b_k - b)
+			zeta_sum = zeta_sum + zeta
 			## compute q(Z)
       Ez <- compute_EZ(d = d,b = b,b_k = b_k)
       ## update (qL, gL, qF, gF) 
@@ -90,8 +91,9 @@ np_ebpmf_wbg <- function(X, K, alpha,
       rm(rank1_qg)
 
 			## update tau
-			tau[k] = optim_tau_k(tau = tau, k = k, zeta_sum = zeta_sum, 
-													l0 = l0, f0 = f0, qg = qg, eps_bar = eps_bar)## TODO
+			tau[k] = optim_tau_k(alpha = alpha, tau = tau, k = k, 
+													 zeta_sum = zeta_sum, zeta = zeta, d= d,
+													 l0 = l0, f0 = f0, qg = qg, eps_bar = eps_bar)## TODO
 			w_bar_log[k] = log(tau[k]) + sum( log(1 - tau[1:(k-1)]) )
 			w_hat_log[k] = w_bar_log[k]
 
@@ -109,7 +111,9 @@ np_ebpmf_wbg <- function(X, K, alpha,
 		b_res = c_alpha_log + sum( log(1-tau) ) + log(eps_hat) - a
 		b = log( exp(b) - exp(b_res0) + exp(b_res) )
 		b_k_max = pmax(b_res, b_k_max)
-    if(!fix_option$l0){
+    Lam_res = exp(sum( log(1-tau) ) + log(eps_bar))
+		
+		if(!fix_option$l0){
       denom <- colSums(w_bar * t(qg$qls_mean) * colSums(f0 * qg$qfs_mean))
       l0 <- X_rs/denom
     }
@@ -119,8 +123,8 @@ np_ebpmf_wbg <- function(X, K, alpha,
     }
 		## compute ELBO
 		KL = sum(qg$kl_l) + sum(qg$kl_f)
-		ELBO = compute_elbo_np_wbg(alpha = alpha, w_bar = w_bar, w_hat = w_hat, l0 = l0, f0 = f0, qg = qg, 
-														b = b, a = a, d = d, const = const) ## TODO
+		ELBO = compute_elbo_np_wbg(alpha = alpha, w_bar = w_bar, l0 = l0, f0 = f0, qg = qg, 
+														b = b, a = a, d = d, Lam_res = Lam_res, const = const) ## TODO
 		ELBOs <- c(ELBOs, ELBO)
 		KLs <- c(KLs, KL)
 		## update a & b
@@ -147,7 +151,38 @@ tau2w <- function(tau){
 }
 
 
+optim_tau_k <- function(alpha, tau, k, zeta_sum, zeta, d, l0, f0, qg, eps_bar){
+	K = ncol(qg$qls_mean)
+	mu_sum = colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean)
+	eps_sum = sum(l0) * sum(f0) * eps_bar
+	A = ifelse(k = 1, 1, exp(cumsum( log(1 - tau[1:(k-1)]))))
+	if (k == K){ tmp = 0}
+	if (k == (K - 1)){ tmp = tau[K] * mu_sum[K] + eps_sum * (1 - tau[K])}
+	if (k < (K-1)){
+		tmp = sum( (tau[(k+1):K] * mu_sum[(k+1):K]) * 
+							exp(cumsum( c(0, log(1-tau[(k+1):(K-1)])) ))) + 
+					eps_sum * ( exp( sum( log(1- tau[(k+1):K])) ) )
+	}
+	A = A * (tmp - mu_sum[k])
+	B = sum( d$x * (1 - zeta_sum) ) + alpha -1
+	C = sum( d$x * zeta )
+	tau_k = solve_quadratic(A = A, B = B, C = C)
+}
 
+
+solve_quadratic <- function(A, B, C){
+	a = A
+	b = B - A +C
+	c = -C
+	s1 = (-b + sqrt(b^2 - 4*a*C))/(2*a)
+	s2 = (-b - sqrt(b^2 - 4*a*C))/(2*a)
+	if(s1*(1 - s1) > 0){
+		return(s1)
+	}
+	if(s2*(1 - s2) > 0){
+    return(s2)
+  }
+}
 
 
 
