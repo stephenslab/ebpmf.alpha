@@ -236,6 +236,23 @@ init_ebpmf_wbg <- function(X, K, init, d, seed = 123){
 }
 
 
+init_np_ebpmf_wbg <- function(X, K, alpha, c_alpha_log, init, d, seed = 123){
+	set.seed(seed)
+	tmp = init_ebpmf_wbg(X = X, K = K, init = init, d = d, seed = seed)
+	l0 = tmp$l0 * sum(tmp$w)
+	f0 = tmp$f0
+	b = tmp$b
+	a = tmp$a
+	qg = tmp$qg
+
+	tau = rbeta(n = K, shape1 = 1, shape2 = alpha) ## TOTHINK: may need to re-adjust q_k
+	eps_bar = 1
+	eps_hat = 1
+	b_res = c_alpha_log + sum( log(1-tau) ) + log(eps_hat) - a
+	return(list(l0 = l0, f0 = f0, w = w, qg = qg, b = b, a = a,
+							tau = tau, eps_bar = eps_bar, eps_hat = eps_hat, b_res = b_res))
+}
+
 ## ================================================================================================================
 ## Functions for computing ELBO
 ## ================================================================================================================
