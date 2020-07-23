@@ -252,9 +252,6 @@ init_np_ebpmf_wbg <- function(X, K, alpha, c_alpha_log, init, d, seed = 123){
 	}
 	eps_bar = 1
 	eps_hat = 1
-	#b_res = c_alpha_log + sum( log(1-tau) ) + log(eps_hat) - a
-	#b = log(exp(b) + exp(b_res))
-
 	## compute `a`
   a = replicate(length(d$x), 0)
   for(k in 1:K){

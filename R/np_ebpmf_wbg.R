@@ -62,17 +62,13 @@ np_ebpmf_wbg <- function(X, K, alpha = 1,
   ## update iteratively
   ELBOs <- c()
 	KLs <- c()
-	#browser()
   for(i in 1:maxiter){
-		#browser()
 		expb_sum =  replicate(length(d$x),0) 
-		b_k_max = replicate(length(d$x),0) ## max b_k
+		b_k_max = replicate(length(d$x),0) 
 		for(k in 1:K){
-			print(k)
 			#if(i == 9 && k == 7){browser()}
 			## store b_k
  			b_k = w_hat_log[k] + qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
-    	## update sum_{t = 1: k} exp(b_ijt)
 			## compute q(Z)
       Ez <- compute_EZ(d = d,b = b,b_k = b_k)
       ## update (qL, gL, qF, gF) 
@@ -91,17 +87,15 @@ np_ebpmf_wbg <- function(X, K, alpha = 1,
 			rm(Ez)
       qg = update_qg(tmp = rank1_qg, qg = qg, k = k)
       rm(rank1_qg)
-
-			## update tau
+			## update tau and w
 			zeta = exp(b_k - b)
 			zeta_sum = expb_sum/exp(b) + zeta
-			zeta_sum[zeta_sum >= 1] <- 1 - 1e-6 ## TODO: how to prevent it
-			#tau[k] = optim_tau_k(alpha = alpha, tau = tau, k = k, 
-			#										 zeta_sum = zeta_sum, zeta = zeta, 
-			#										 d= d, l0 = l0, f0 = f0, qg = qg, eps_bar = eps_bar)
+			zeta_sum[zeta_sum >= 1] <- 1 ## just in case
+			tau[k] = optim_tau_k(alpha = alpha, tau = tau, k = k, 
+													 zeta_sum = zeta_sum, zeta = zeta, 
+													 d= d, l0 = l0, f0 = f0, qg = qg, eps_bar = eps_bar)
 			w_bar_log[k] = log(tau[k]) + ifelse(k==1,0,sum( log(1 - tau[1:(k-1)]) ))
 			w_hat_log[k] = w_bar_log[k]
-
 			## update b
       b_k0 = b_k
       b_k = w_hat_log[k] + qg$qls_mean_log[d$i,k] + qg$qfs_mean_log[d$j, k] - a
@@ -119,7 +113,6 @@ np_ebpmf_wbg <- function(X, K, alpha = 1,
 		b_k_max = pmax(b_res, b_k_max)
     w_bar_res = exp(sum( log(1-tau) ))
     Lam_res = exp(sum( log(1-tau) ) + log(eps_bar))
-		#browser()
 		if(!fix_option$l0){
       denom <- colSums(w_bar * t(qg$qls_mean) * colSums(f0 * qg$qfs_mean)) + sum(f0)*w_bar_res*eps_bar
       l0 <- X_rs/denom
@@ -172,8 +165,8 @@ optim_tau_k <- function(alpha, tau, k, zeta_sum, zeta, d, l0, f0, qg, eps_bar){
 	K = ncol(qg$qls_mean)
 	mu_sum = colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean)
 	eps_sum = sum(l0) * sum(f0) * eps_bar
-	A = ifelse(k == 1, 1, exp(cumsum( log(1 - tau[1:(k-1)]))))
-	if (k == K){ tmp = 0}
+	A = ifelse(k == 1, 1, exp(sum( log(1 - tau[1:(k-1)]))))
+	if (k == K){ tmp = eps_sum }
 	if (k == (K - 1)){ tmp = tau[K] * mu_sum[K] + eps_sum * (1 - tau[K])}
 	if (k < (K-1)){
 		tmp = sum( (tau[(k+1):K] * mu_sum[(k+1):K]) * 
@@ -195,10 +188,10 @@ solve_quadratic <- function(A, B, C){
 	s1 = (-b + sqrt(b^2 - 4*a*c))/(2*a)
 	s2 = (-b - sqrt(b^2 - 4*a*c))/(2*a)
 	if(s1*(1 - s1) >= 0){
-		return(max(s1, 1e-6))
+		return(max(s1, 1e-20))
 	}
 	if(s2*(1 - s2) >= 0){
-    return(max(s2, 1e-6))
+    return(max(s2, 1e-20))
   }
 }
 
