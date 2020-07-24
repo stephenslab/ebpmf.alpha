@@ -92,17 +92,8 @@ ebpmf_wbg <- function(X, K,
 			b_new =  log( exp(b_new) - exp(b_k) + exp(b_k_new)  )
 			b_k_max = pmax(b_k, b_k_max)
 		}
-		b = b_new
-   
-	 	## TODO: weed out unnecessary w's	
-		## check if nonzero w_k is necessary, with greedy approach
-		
-		### find the idx for w to be checked, the order matters
-
-
-		### 
-		
-		## update l0, f0
+		b = b_new	
+	## update l0, f0
     if(!fix_option$l0){
       denom <- colSums(w * t(qg$qls_mean) * colSums(f0 * qg$qfs_mean))
       l0 <- X_rs/denom
@@ -135,42 +126,6 @@ ebpmf_wbg <- function(X, K,
 
 
 
-#' @title Empirical Bayes Poisson Matrix Factorization, Background Model (rank 1)
-#' @import ebpm
-#' @export  rank1_bg
-## TODO: uupdate KL, Lam
-rank1_wbg <- function(d, X_rs, X_cs, l0, f0, w_log_k, 
-										 pm_func,pm_control, 
-										 ql, gl, kl_l, 
-										 qf, gf, kl_f, 
-										 fix_option){
-  p = length(X_cs)
-  n = length(X_rs)
-  ## fit for f, and compute kl_f
-	w_k = exp(w_log_k)
-	if(!fix_option$qf){
-		s <- sum(l0 * ql$mean) * f0 * w_k
-		fit = do.call(pm_func$f, 
-									c(list(x = X_cs, s = s, g_init = gf, fix_g = fix_option$gf), pm_control))
-  	qf = fit$posterior
-		gf = fit$fitted_g
-		kl_f = compute_kl_ebpm(y = X_cs, s = s, posterior = qf, ll = fit$log_likelihood)
-		rm(fit)
-	}
-  ## fit for l, and compute kl_l
-	if(!fix_option$ql){
-  	s = sum(f0 * qf$mean) * l0 * w_k
-		fit = do.call(pm_func$l, 
-									c(list(x = X_rs, s = s, g_init = gl, fix_g = fix_option$gl), pm_control))
-		ql = fit$posterior
-		gl = fit$fitted_g
-  	kl_l = compute_kl_ebpm(y = X_rs, s = s, posterior = ql, ll = fit$log_likelihood)
-		rm(fit)
-	}
-	## list to return
-  qg = list(ql = ql, gl = gl, kl_l = kl_l, qf = qf, gf = gf, kl_f = kl_f)
-  return(qg)
-}
 
 
 
