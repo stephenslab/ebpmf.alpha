@@ -28,8 +28,8 @@ system.time(
   fit_ebpmf <- ebpmf.alpha::ebpmf_wbg(X = X, K = k, 
 												pm_func = list(f = ebpm::ebpm_gamma_mixture, l = ebpm::ebpm_gamma_mixture),
 												init = NULL,
-												fix_option = list(l0 = TRUE, ql = FALSE, gl = FALSE,
-																					f0 = TRUE, qf = FALSE, gf = FALSE),
+												fix_option = list(l0 = FALSE, ql = FALSE, gl = FALSE,
+																					f0 = FALSE, qf = FALSE, gf = FALSE),
 												maxiter = maxiter, verbose = verbose) 
 )
 

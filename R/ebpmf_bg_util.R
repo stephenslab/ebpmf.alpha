@@ -29,6 +29,47 @@ init_ebpmf_bg <- function(X,K, init, d, seed = 123){
   return(list(l0 = l0, f0 = f0, qg = qg, b = b, a = a))
 }
 
+#' @title Empirical Bayes Poisson Matrix Factorization, Background Model (rank 1)
+#' @import ebpm
+#' @export  rank1_bg
+rank1_bg <- function(d, X_rs, X_cs, l0, f0, 
+                     pm_func,pm_control, 
+                     ql, gl, kl_l, 
+                     qf, gf, kl_f, 
+                     fix_option){
+  p = length(X_cs)
+  n = length(X_rs)
+  ## fit for f, and compute kl_f
+  if(!fix_option$qf){
+    s <- sum(l0 * ql$mean) * f0
+    fit = do.call(pm_func$f, 
+                  c(list(x = X_cs, s = s, g_init = gf, fix_g = fix_option$gf), pm_control))
+    if(is.infinite(fit$log_likelihood)){browser()}
+    qf = fit$posterior
+    gf = fit$fitted_g
+    kl_f = compute_kl_ebpm(y = X_cs, s = s, posterior = qf, ll = fit$log_likelihood)
+    #if(is.infinite(kl_f)){browser()}
+    rm(fit)
+  }
+  ## fit for l, and compute kl_l
+  if(!fix_option$ql){
+    s = sum(f0 * qf$mean) * l0
+    fit = do.call(pm_func$l, 
+                  c(list(x = X_rs, s = s, g_init = gl, fix_g = fix_option$gl), pm_control))
+    if(is.infinite(fit$log_likelihood)){browser()}
+    ql = fit$posterior
+    gl = fit$fitted_g
+    kl_l = compute_kl_ebpm(y = X_rs, s = s, posterior = ql, ll = fit$log_likelihood)
+    rm(fit)
+  }
+  ## list to return
+  qg = list(ql = ql, gl = gl, kl_l = kl_l, qf = qf, gf = gf, kl_f = kl_f)
+  return(qg)
+}
+
+
+
+
 #' @export compute_elbo_bg
 compute_elbo_bg <- function(l0, f0, qg, b, a, d, const){
   KL = sum(qg$kl_l) + sum(qg$kl_f)

@@ -41,3 +41,55 @@ compute_elbo_np_wbg <- function(alpha, tau, w_bar, l0, f0, qg, b, a, d, Lam_res,
 				 	(alpha - 1)*(sum(log(1 - tau))) - K * lbeta(1, alpha)  - KL - const
   return(elbo)
 }
+
+tau2w <- function(tau){
+	K = length(tau)
+	w_bar_log = log(tau) + cumsum(c(0, log(1-tau[1:(K-1)])))	
+	w_hat_log = w_bar_log
+	return(list(w_bar_log = w_bar_log, w_hat_log = w_hat_log))
+}
+
+w2tau <- function(w){
+	K = length(w)
+	tau = replicate(K, NA)
+	tau[1] = w[1]
+	for(k in 2:K){
+		tau[k] = w[k]/( exp(sum ( log(1-tau[1:(k-1)]))))
+	}
+	return(tau)
+}
+
+optim_tau_k <- function(alpha, tau, k, zeta_sum, zeta, d, l0, f0, qg, eps_bar){
+	K = ncol(qg$qls_mean)
+	mu_sum = colSums(l0 * qg$qls_mean) * colSums(f0 * qg$qfs_mean)
+	eps_sum = sum(l0) * sum(f0) * eps_bar
+	A = ifelse(k == 1, 1, exp(sum( log(1 - tau[1:(k-1)]))))
+	if (k == K){ tmp = eps_sum }
+	if (k == (K - 1)){ tmp = tau[K] * mu_sum[K] + eps_sum * (1 - tau[K])}
+	if (k < (K-1)){
+		tmp = sum( (tau[(k+1):K] * mu_sum[(k+1):K]) * 
+							exp(cumsum( c(0, log(1-tau[(k+1):(K-1)])) ))) + 
+					eps_sum * ( exp( sum( log(1- tau[(k+1):K])) ) )
+	}
+	A = A * (tmp - mu_sum[k])
+	B = sum( d$x * (1 - zeta_sum) ) + alpha -1
+	C = sum( d$x * zeta )
+	tau_k = solve_quadratic(A = A, B = B, C = C)
+	return(tau_k)
+}
+
+
+solve_quadratic <- function(A, B, C){
+	a = A
+	b = B - A +C
+	c = -C
+	s1 = (-b + sqrt(b^2 - 4*a*c))/(2*a)
+	s2 = (-b - sqrt(b^2 - 4*a*c))/(2*a)
+	if(s1*(1 - s1) >= 0){
+		return(max(s1, 1e-20))
+	}
+	if(s2*(1 - s2) >= 0){
+    return(max(s2, 1e-20))
+  }
+}
+

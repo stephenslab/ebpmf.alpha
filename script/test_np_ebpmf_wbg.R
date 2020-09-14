@@ -4,8 +4,8 @@ library(Matrix)
 library(ebpmf.alpha)
 # test code for ebpmf
 set.seed(123)
-maxiter = 100
-alpha = 5
+maxiter = 30
+alpha = 10
 verbose = TRUE
 k = 10
 n = 500; p = 100
@@ -26,7 +26,7 @@ X = matrix(rpois(n*p, lam), nrow = n)
 #
 
 system.time(
-  fit_ebpmf <- ebpmf.alpha::np_ebpmf_wbg(X = X, K = 2 *k, alpha = alpha,  
+  fit_ebpmf <- ebpmf.alpha::np_ebpmf_wbg(X = X, K = k, alpha = alpha,  
 												pm_func = list(f = ebpm::ebpm_gamma_mixture, l = ebpm::ebpm_gamma_mixture),
 												init = NULL,
 												fix_option = list(l0 = FALSE, ql = FALSE, gl = FALSE,

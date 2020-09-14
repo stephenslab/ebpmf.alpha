@@ -1,10 +1,8 @@
 rm(list = ls())
 library(ebpm)
-#source("~/Desktop/git/ebpm/R/ebpm_point_gamma.R")
 library(Matrix)
-#library(ebpmf.alpha)
+library(ebpmf.alpha)
 # test code for ebpmf
-source("../R/util.R")
 
 set.seed(123)
 maxiter = 20
@@ -26,14 +24,12 @@ L0 = lf_init$W
 F0 = t(lf_init$H) 
 qg0 = initialize_qg_from_LF(L0 = L0, F0 = F0)
 
-#browser()
-
-
 system.time(
   fit_ebpmf <- ebpmf.alpha::ebpmf(X = X, K = k, 
 												pm_func = ebpm::ebpm_point_gamma,
 												init = list(qg = qg0),
-												maxiter = maxiter, verbose = verbose, 
-												fix_g = list(l = FALSE, f = FALSE))
+												fix_option = list(ql = FALSE, gl = FALSE,
+                                          qf = FALSE, gf = FALSE),
+												maxiter = maxiter, verbose = verbose) 
 )
 
