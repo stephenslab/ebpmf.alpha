@@ -141,17 +141,33 @@ compute_kl_ebpm <- function(y,s, posterior, ll){
   return(E_loglik - ll)
 }
 
-
-# compute_rmse <- function(lam1, lam2){
-#   return(sqrt(mean((lam1 - lam2)^2)))
-# }
-
-
 # Apply operation f to all nonzeros of a sparse matrix.
 apply.nonzeros <- function (X, f) {
   d <- summary(X)
   return(sparseMatrix(i = d$i,j = d$j,x = f(d$x),dims = dim(X)))
 }
+
+## KL( Gamma(c, d) || Gamma(a, b) )
+KL.gamma <- function(a,b,c,d) {
+  i <- function(a,b,c,d)
+    - c * d / a - b * log(a) - lgamma(b) + (b-1)*(psigamma(d) + log(c))
+  i(c,d,c,d) - i(a,b,c,d)
+}
+
+cumsum_row <- function(A){
+  t(apply(A, 1, cumsum))
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 
