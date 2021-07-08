@@ -136,6 +136,7 @@ initialize_qgl0f0w_from_L <- function(X, L){
 
 #' @export compute_kl_ebpm
 compute_kl_ebpm <- function(y,s, posterior, ll){
+	if(length(s) == 1){s = replicate(length(y),s)}
   mask <- (y != 0)
   E_loglik = - sum(s * posterior$mean) + sum(y[mask] * log(s[mask])) + sum(y[mask]*posterior$mean_log[mask]) - sum(lgamma(y[mask] + 1))
   return(E_loglik - ll)
@@ -157,7 +158,6 @@ KL.gamma <- function(a,b,c,d) {
 cumsum_row <- function(A){
   t(apply(A, 1, cumsum))
 }
-
 
 
 
