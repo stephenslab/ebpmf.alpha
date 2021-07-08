@@ -1,4 +1,4 @@
 library(testthat)
-library(ebpmf)
+library(ebpmf.alpha)
 
-test_check("ebpmf")
+test_check("ebpmf.alpha")
