@@ -20,3 +20,9 @@ fit = ebpmf.alpha::ebpmf_wbg2(X = X, K = K, init = init, verbose = TRUE)
 test_that("ebpmf-wbg2 works", {
   expect_false(any(diff(fit$ELBO) < 0))
 })
+
+# fit2 = ebpmf.alpha::ebpmf_wbg2(X = X, K = K, init = init,
+#                                fix_option = list(f0 = FALSE,
+#                                                  gl = TRUE, ql = TRUE,
+#                                                  gf = FALSE, qf = FALSE),
+#                                verbose = TRUE)

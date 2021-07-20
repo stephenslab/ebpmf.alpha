@@ -1,8 +1,8 @@
 #' @export initialize_wbg3_from_LF
 initialize_wbg3_from_LF <- function(L, F ){
   init = ebpmf.alpha::initialize_qgl0f0w_from_LF(L = L, F = F)
-  init$l0 <- list(mean = init$l0, g = NULL, KL = NULL)
-  init$f0 <- list(mean = init$f0, g = NULL, KL = NULL)
+  init$l0 <- list(mean = init$l0, mean_log = log(init$l0), g = NULL, kl = 0)
+  init$f0 <- list(mean = init$f0, mean_log = log(init$f0), g = NULL, kl = 0)
   return(init)
 }
 

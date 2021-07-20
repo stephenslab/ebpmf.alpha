@@ -3,7 +3,8 @@ initialize_wbg2_from_LF <- function(L, F ){
   K = ncol(L)
   L[L <  1e-8] <- 1e-8
   F[F <  1e-8] <- 1e-8
-  f0 <- list(mean = apply(F, 1, mean), g = NULL, KL = NULL)
+  f0 <- list(mean = apply(F, 1, mean), g = NULL, kl = 0)
+  f0$mean_log = log(f0$mean)
   F = F/f0$mean
   qg = ebpmf.alpha::initialize_qg_from_LF(L0 = L, F0 = F)
   w = replicate(K, 1)

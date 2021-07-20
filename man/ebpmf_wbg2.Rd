@@ -7,8 +7,8 @@
 ebpmf_wbg2(
   X,
   K,
-  pm_func = list(f = ebpm::ebpm_gamma_mixture, l = ebpm::ebpm_gamma_mixture, f0 =
-    ebpm::ebpm_point_gamma),
+  pm_func = list(f = ebpm::ebpm_gamma_mixture, l = ebpm::ebpm_gamma, f0 =
+    ebpm::ebpm_gamma),
   init = NULL,
   pm_control = NULL,
   fix_option = list(f0 = FALSE, gl = FALSE, ql = FALSE, gf = FALSE, qf = FALSE),
