@@ -55,7 +55,9 @@ pmf_subject <- function(X, u, K, init = NULL, maxiter = 100, verbose = FALSE, se
 		
 		## compute loglikelihood
 		L_cs_subject = compute_cs_by_subject(L, S) 
-		ll = - sum((m %*% L_cs_subject) * F) + sum(d$x * (b + a)) + sum(t(log(m)) * X_cs_subject) - const
+		tmp = t(log(m)) * X_cs_subject
+		tmp[is.nan(tmp)] <- 0
+		ll = - sum((m %*% L_cs_subject) * F) + sum(d$x * (b + a)) + sum(tmp) - const
 		log_liks = c(log_liks, ll)
 		## verbose
     if(verbose){
